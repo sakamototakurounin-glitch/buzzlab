@@ -6,6 +6,8 @@ CSV / JSON ファイルから問題セットを作り、1人または2人で遊�
 
 必須列は `question`, `answer` です。任意で `set_title`, `category`, `explanation` を指定できます。
 
+`answer` には、ひらがな・カタカナ・英字・数字だけを使用します。
+
 ## JSON 形式
 
 ```json
@@ -15,7 +17,7 @@ CSV / JSON ファイルから問題セットを作り、1人または2人で遊�
     {
       "category": "地理",
       "question": "日本の首都はどこ？",
-      "answer": "東京",
+      "answer": "トウキョウ",
       "explanation": "東京は日本の首都です。"
     }
   ]
