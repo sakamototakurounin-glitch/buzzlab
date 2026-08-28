@@ -300,9 +300,25 @@ function showFinalAnswer(){const q=deck[index];answered=true;clearTimers();activ
 function endQuestion(message){if(answered)return;$("status").textContent=message;$("status").className="status bad";$("phase").textContent="ANSWER";showFinalAnswer()}
 function finishAnswer(correct,timedOut){if(answered)return;clearInterval(answerTimer);const p=activePlayer;if(correct){scores[p]+=10;correctCount++;$("s1").textContent=scores[1];$("s2").textContent=scores[2];$("status").textContent="✓ 正解  +10";$("status").className="status good";$("arena").classList.add("correct");$("phase").textContent="CORRECT";return showFinalAnswer()}
 scores[p]=Math.max(0,scores[p]-5);wrongCount++;$("s1").textContent=scores[1];$("s2").textContent=scores[2];$("status").textContent=timedOut?"TIME UP  −5":"✕ 不正解  −5";$("status").className="status bad";$("arena").classList.add("wrong");setTimeout(()=>$("arena").classList.remove("wrong"),550);
-if(timedOut)return endQuestion("TIME UP  −5 — 正解を表示");
-if(players===2){lockedPlayers.push(p);if(lockedPlayers.length<2){activePlayer=0;clearPlayerState();$("charBox").classList.add("hidden");$("buzzGrid").classList.remove("hidden");$("buzz1").disabled=lockedPlayers.includes(1);$("buzz2").disabled=lockedPlayers.includes(2);$("status").textContent=`PLAYER ${p} 不正解 −5 ／ 相手はまだ回答できます`;$("phase").textContent="REBUZZ";const speed=+$("charSpeed").value;startReveal(speed,startPostReadCountdown);return}}
-endQuestion("✕ 不正解  −5 — 正解を表示")}
+if(players===2){
+  lockedPlayers.push(p);
+  if(lockedPlayers.length<2){
+    activePlayer=0;
+    clearPlayerState();
+    $("charBox").classList.add("hidden");
+    $("buzzGrid").classList.remove("hidden");
+    $("buzz1").disabled=lockedPlayers.includes(1);
+    $("buzz2").disabled=lockedPlayers.includes(2);
+    $("status").textContent=timedOut
+      ? `PLAYER ${p} 回答時間切れ −5 ／ 相手はまだ回答できます`
+      : `PLAYER ${p} 不正解 −5 ／ 相手はまだ回答できます`;
+    $("phase").textContent="REBUZZ";
+    const speed=+$("charSpeed").value;
+    startReveal(speed,startPostReadCountdown);
+    return;
+  }
+}
+endQuestion(timedOut?"TIME UP  −5 — 正解を表示":"✕ 不正解  −5 — 正解を表示")}
 function nextQuestion(){if(!answered)return;clearTimeout(autoNextTimer);if(index+1>=deck.length)return finishGame();index++;renderQuestion()}
 function finishGame(){clearTimers();$("game").classList.add("hidden");$("result").classList.remove("hidden");$("resultScore").textContent=players===1?scores[1]:`${scores[1]} : ${scores[2]}`;$("resultStats").textContent=players===1?`${deck.length}問中 ${correctCount}問正解 · 正答率 ${Math.round(correctCount/deck.length*100)}%`:(scores[1]===scores[2]?"引き分け！":`PLAYER ${scores[1]>scores[2]?1:2} の勝ち！`)}
 function confirmExit(){if(confirm("クイズを終了して問題セット画面へ戻りますか？"))goHome()}
