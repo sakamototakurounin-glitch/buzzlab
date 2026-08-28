@@ -4,7 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#071827">
 <meta name="description" content="CSV・JSONから自分の問題セットを作って遊べる早押しクイズ">
-<title>BUZZLAB — クイズを、持ち込もう。</title>
+<title>BUZZLAB</title>
 <style>
 :root{--ink:#071827;--panel:#0d2638;--paper:#f5f1e8;--muted:#9bb0bc;--line:#ffffff19;--orange:#ff6b35;--yellow:#ffc857;--mint:#64d8b0;--red:#ff5d73;--shadow:0 22px 70px #0007}
 *{box-sizing:border-box}html{background:var(--ink);color:var(--paper);font-family:Inter,"Hiragino Sans","Yu Gothic UI",sans-serif}
@@ -50,10 +50,171 @@ h1{font-size:clamp(45px,8vw,88px);line-height:.93;letter-spacing:-.06em;margin:1
 @keyframes blink{50%{opacity:.15}}@keyframes pulse{to{box-shadow:0 0 0 3px #ffc85766,0 0 28px #ffc85744}}@keyframes titleSlam{0%{opacity:0;transform:translateY(20px) scale(.45)}55%{opacity:1;transform:translateY(-4px) scale(1.3);text-shadow:0 0 25px #ffc85799}100%{transform:none}}@keyframes correct{30%{transform:scale(1.015);box-shadow:0 0 0 2px #64d8b0,0 0 50px #64d8b055}}@keyframes wrong{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}@keyframes pop{50%{transform:scale(1.16)}}
 @media(max-width:760px){.app{padding:10px 10px 24px}.hero{padding:34px 4px 24px}.grid{grid-template-columns:1fr}.playPanel{order:-1}.formGrid{grid-template-columns:repeat(3,1fr)}.hud{grid-template-columns:1fr 1fr}.roundBox{grid-column:1/-1;grid-row:1}.scoreBox{grid-row:2}.question{min-height:170px}.buzz{min-height:100px}.quick{display:none}}
 @media(max-width:430px){.brand{font-size:15px}.hero h1{font-size:48px}.formGrid{grid-template-columns:1fr 1fr}.field:last-child{grid-column:1/-1}.question{font-size:25px;min-height:180px}.charChoices{gap:6px}.charChoice{min-height:56px}}
+
+/* Compact smartphone home screen */
+@media(max-width:760px){
+  html,body{-webkit-text-size-adjust:100%}
+  #home{
+    height:100svh;
+    min-height:100svh;
+    overflow:hidden;
+    padding:7px 8px max(7px,env(safe-area-inset-bottom));
+    display:flex;
+    flex-direction:column;
+  }
+  #home .nav{
+    height:42px;
+    min-height:42px;
+  }
+  #home .brand{font-size:15px;gap:8px}
+  #home .brandMark{
+    width:27px;height:27px;border-radius:7px;
+    box-shadow:3px 3px 0 var(--yellow);
+  }
+  #home .nav .ghost{
+    padding:7px 10px;
+    border-radius:9px;
+    font-size:12px;
+  }
+  #home .grid{
+    flex:1;
+    min-height:0;
+    display:grid;
+    grid-template-columns:1fr;
+    grid-template-rows:auto auto;
+    align-content:start;
+    gap:7px;
+  }
+  #home .card{border-radius:15px;box-shadow:0 10px 30px #0005}
+  #home .playPanel,#home .setPanel{
+    padding:10px 11px;
+    min-height:0;
+    overflow:hidden;
+  }
+  #home .playPanel{order:-1}
+  #home .kicker{font-size:9px;letter-spacing:.13em}
+  #home .playPanel h2,#home .cardHead h2{
+    font-size:18px;
+    line-height:1.05;
+    margin:2px 0 7px;
+  }
+  #home .cardHead{
+    margin-bottom:7px;
+    align-items:center;
+  }
+  #home .formGrid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:5px;
+  }
+  #home .field{font-size:9px}
+  #home .field select{
+    margin-top:3px;
+    padding:7px 6px;
+    border-radius:8px;
+    font-size:12px;
+  }
+  #home .playerPick{
+    gap:5px;
+    margin:7px 0;
+  }
+  #home .toggle{
+    padding:8px 5px;
+    border-radius:9px;
+    font-size:14px;
+  }
+  #home .launch{
+    padding:10px 7px;
+    border-radius:10px;
+    font-size:15px;
+  }
+  #home .quick{display:none}
+  #home .pill{
+    padding:4px 7px;
+    font-size:9px;
+  }
+  #home .dot{width:5px;height:5px}
+  #home .selectedSet{
+    padding:9px 11px;
+    border-radius:11px;
+  }
+  #home .selectedSet h3{
+    margin:4px 0 2px;
+    font-size:19px;
+    line-height:1.08;
+  }
+  #home .setMeta{font-size:10px}
+  #home .selectedSet:after{
+    font-size:88px;
+    right:-2px;
+    bottom:-28px;
+  }
+  #home .library{
+    margin-top:6px;
+    gap:5px;
+    padding-bottom:1px;
+  }
+  #home .setChip{
+    min-width:112px;
+    padding:7px 8px;
+    border-radius:9px;
+    font-size:11px;
+  }
+  #home .setChip small{
+    margin-top:2px;
+    font-size:9px;
+  }
+  #home .manageRow{
+    margin-top:6px;
+    gap:5px;
+    flex-wrap:nowrap;
+  }
+  #home .manageRow button{
+    min-width:0;
+    flex:1 1 0;
+    padding:7px 4px;
+    border-radius:8px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+
+  /* Keep the actual quiz screen comfortable rather than shrinking it. */
+  #game.app{padding:10px 10px 24px}
+  .hud{grid-template-columns:1fr 1fr}
+  .roundBox{grid-column:1/-1;grid-row:1}
+  .scoreBox{grid-row:2}
+  .question{min-height:170px}
+  .buzz{min-height:100px}
+}
+@media(max-width:430px){
+  #home .formGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #home .field:last-child{grid-column:auto}
+  #home .brand{font-size:14px}
+  #home .playPanel h2,#home .cardHead h2{font-size:17px}
+  #home .selectedSet h3{font-size:18px}
+  .question{font-size:25px;min-height:180px}
+  .charChoices{gap:6px}
+  .charChoice{min-height:56px}
+}
+@media(max-width:760px) and (max-height:650px){
+  #home{padding-top:4px}
+  #home .nav{height:36px;min-height:36px}
+  #home .brandMark{width:23px;height:23px}
+  #home .playPanel,#home .setPanel{padding:7px 9px}
+  #home .playPanel h2,#home .cardHead h2{font-size:15px;margin-bottom:5px}
+  #home .field select{padding:5px 4px;font-size:11px}
+  #home .toggle{padding:6px 4px;font-size:12px}
+  #home .launch{padding:7px;font-size:13px}
+  #home .selectedSet{padding:6px 8px}
+  #home .selectedSet h3{font-size:16px}
+  #home .library{margin-top:4px}
+  #home .setChip{padding:5px 6px}
+  #home .manageRow{margin-top:4px}
+  #home .manageRow button{padding:5px 3px;font-size:9px}
+}
+
 </style></head><body>
 <main id="home" class="app">
 <nav class="nav"><div class="brand"><span class="brandMark">B</span> BUZZLAB</div><button class="ghost" onclick="openImport()">＋ インポート</button></nav>
-<header class="hero"><div class="eyebrow">BRING YOUR OWN QUESTIONS</div><h1>クイズを、<br>持ち込もう。</h1><p>CSVかJSONを読み込めば、どんなテーマも早押しクイズに。問題セットはこの端末に保存され、次回もそのまま遊べます。</p></header>
 <div class="grid">
 <section class="card setPanel"><div class="cardHead"><div><div class="kicker">QUESTION SET</div><h2>問題セット</h2></div><span id="setCount" class="pill"><span class="dot"></span>0 SETS</span></div>
 <div class="selectedSet"><span class="pill">選択中</span><h3 id="selectedTitle">読み込み中</h3><div id="selectedMeta" class="setMeta"></div></div><div id="library" class="library"></div>
