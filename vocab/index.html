@@ -110,6 +110,13 @@
     .choice{padding:12px;border:1px solid var(--line);background:#fff;border-radius:11px;text-align:left;cursor:pointer}
     .choice.correct{border-color:#16a34a;background:#f0fdf4}
     .choice.wrong{border-color:#dc2626;background:#fef2f2}
+    .accountStatus{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+    .accountDot{width:8px;height:8px;border-radius:50%;background:#9ca3af}
+    .accountDot.online{background:#16a34a}
+    .accountDot.syncing{background:#f59e0b}
+    .accountForm{display:grid;gap:10px}
+    .accountError{color:var(--danger);font-size:13px;min-height:1.3em}
+    .migrationChoice{display:grid;gap:8px;margin-top:12px}
 
     @media(max-width:800px){
       body{background:#fff}
@@ -165,7 +172,7 @@
 <div class="app">
   <div class="top">
     <div><div class="brand">VocabStar</div><div class="muted">英単語特化・オフライン単語帳</div></div>
-    <div class="row"><button class="btn" id="recoveryBtn">旧データ確認</button><button class="btn" id="exportBtn">バックアップ</button><button class="btn" id="restoreBtn">復元</button></div>
+    <div class="row"><span class="accountStatus" id="accountStatus"><span class="accountDot" id="accountDot"></span><span id="accountStatusText">この端末のみ</span></span><button class="btn" id="accountBtn">ログイン</button><button class="btn" id="recoveryBtn">旧データ確認</button><button class="btn" id="exportBtn">バックアップ</button><button class="btn" id="restoreBtn">復元</button></div>
   </div>
 
   <div class="topSearch">
@@ -251,6 +258,34 @@
   <div class="row" style="justify-content:flex-end;margin-top:10px">
     <button class="btn" data-close="nameDialog">キャンセル</button>
     <button class="btn primary" id="nameSaveBtn">保存</button>
+  </div>
+</div></dialog>
+
+<dialog id="authDialog"><div class="modal">
+  <div class="row"><h2 id="authTitle" class="grow">ログイン</h2><button class="btn" data-close="authDialog">閉じる</button></div>
+  <div class="accountForm">
+    <label>ユーザー名<input class="input" id="authUsername" autocomplete="username" maxlength="32"></label>
+    <label>パスワード<input class="input" id="authPassword" type="password" autocomplete="current-password" minlength="8"></label>
+    <div class="accountError" id="authError"></div>
+    <button class="btn primary" id="authSubmitBtn">ログイン</button>
+    <button class="btn" id="authModeBtn">新規登録はこちら</button>
+  </div>
+</div></dialog>
+
+<dialog id="accountDialog"><div class="modal">
+  <div class="row"><h2 class="grow">アカウント</h2><button class="btn" data-close="accountDialog">閉じる</button></div>
+  <p><b id="accountUsername"></b> でログイン中です。</p>
+  <div class="muted" id="lastSyncText"></div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="syncNowBtn">今すぐ同期</button><button class="btn danger" id="logoutBtn">ログアウト</button></div>
+</div></dialog>
+
+<dialog id="migrationDialog"><div class="modal">
+  <h2>データの引き継ぎ</h2>
+  <div id="migrationInfo"></div>
+  <div class="migrationChoice">
+    <button class="btn primary" id="migrateLocalBtn">この端末のデータをアカウントへ引き継ぐ</button>
+    <button class="btn" id="useCloudBtn">クラウドのデータをこの端末で使う</button>
+    <button class="btn" id="keepLocalBtn">キャンセル（この端末のデータを残す）</button>
   </div>
 </div></dialog>
 
@@ -379,6 +414,12 @@ function loadState(){
   }catch(e){}
   return {files:[makeFile('My File')]}
 }
+function ensureUserDataShape(x){
+  if(!x.settings)x.settings={};
+  if(!Array.isArray(x.learningHistory))x.learningHistory=[];
+  return x
+}
+state=ensureUserDataShape(state);
 function save(){localStorage.setItem(KEY,JSON.stringify(state));render()}
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function currentFile(){return state.files.find(f=>f.id===activeFileId)}
@@ -651,6 +692,9 @@ function judgeFlash(known){
   if(flashState.index>=flashState.items.length)finishFlashRound();else showFlash()
 }
 function finishFlashRound(){
+  state.learningHistory.push({type:'flash',at:new Date().toISOString(),known:flashState.known.length,unknown:flashState.unknown.length,round:flashState.round});
+  if(state.learningHistory.length>200)state.learningHistory=state.learningHistory.slice(-200);
+  save();
   flashArea.classList.add('hidden');flashEmpty.classList.add('hidden');flashSummary.classList.remove('hidden');
   flashSummaryTitle.textContent=`${flashState.round}周目終了`;
   flashSummaryText.innerHTML=`<div><b>わかった：${flashState.known.length}語</b></div><div style="margin-top:5px">わからない：${flashState.unknown.length}語</div>`;
@@ -730,7 +774,7 @@ function answerQ(btn,w,q){
 }
 nextQBtn.onclick=()=>{
   testState.index++;testState.answered=false;
-  if(testState.index>=testState.questions.length){sentence.textContent=`終了：${testState.score} / ${testState.questions.length} 正解`;choices.innerHTML='';feedback.textContent='';nextQBtn.classList.add('hidden');testProgress.textContent='';return}
+  if(testState.index>=testState.questions.length){state.learningHistory.push({type:'quiz',at:new Date().toISOString(),score:testState.score,total:testState.questions.length});if(state.learningHistory.length>200)state.learningHistory=state.learningHistory.slice(-200);save();sentence.textContent=`終了：${testState.score} / ${testState.questions.length} 正解`;choices.innerHTML='';feedback.textContent='';nextQBtn.classList.add('hidden');testProgress.textContent='';return}
   showQ()
 };
 
@@ -782,11 +826,15 @@ recoverLegacyBtn.onclick=()=>{
 /* backup */
 exportBtn.onclick=()=>{const txt=JSON.stringify(state);navigator.clipboard?.writeText(txt).then(()=>alert('バックアップJSONをコピーしました。')).catch(()=>prompt('コピーしてください',txt))};
 restoreBtn.onclick=()=>{restoreText.value='';restoreDialog.showModal()};
-doRestoreBtn.onclick=()=>{try{const x=JSON.parse(restoreText.value);if(!x||!Array.isArray(x.files)||!x.files.length)throw 0;state=x;activeFileId=state.files[0].id;activeListId=state.files[0].lists[0].id;viewMode='list';localStorage.setItem(KEY,JSON.stringify(state));restoreDialog.close();render();alert('復元しました。')}catch(e){alert('バックアップ形式が正しくありません。')}};
+doRestoreBtn.onclick=()=>{try{const x=JSON.parse(restoreText.value);if(!x||!Array.isArray(x.files)||!x.files.length)throw 0;state=ensureUserDataShape(x);activeFileId=state.files[0].id;activeListId=state.files[0].lists[0].id;viewMode='list';restoreDialog.close();save();alert('復元しました。')}catch(e){alert('バックアップ形式が正しくありません。')}};
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close).close());
+autoSpeak.checked=Boolean(state.settings.autoSpeak);
+autoSpeak.onchange=()=>{state.settings.autoSpeak=autoSpeak.checked;save()};
 if('speechSynthesis' in window){speechSynthesis.getVoices()}
 if('serviceWorker' in navigator&&location.protocol!=='file:'){navigator.serviceWorker.register('./sw.js').catch(()=>{})}
 render();
 </script>
+<script src="./account-config.js"></script>
+<script src="./account.js"></script>
 </body>
 </html>

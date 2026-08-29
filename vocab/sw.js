@@ -1,5 +1,5 @@
-const CACHE='vocabstar-cache-v16-image-import';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./image-import.js'];
+const CACHE='vocabstar-cache-v17-accounts';
+const ASSETS=['./','./index.html','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
 
 async function injectImageImport(resp){
   const type=resp.headers.get('content-type')||'';
