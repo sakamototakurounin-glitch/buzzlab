@@ -1,5 +1,5 @@
-const CACHE='vocabstar-cache-v17-accounts';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
+const CACHE='vocabstar-cache-v18-trio';
+const ASSETS=['./','./index.html','./trio.html','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
 
 async function injectImageImport(resp){
   const type=resp.headers.get('content-type')||'';
@@ -29,9 +29,11 @@ self.addEventListener('activate',e=>e.waitUntil(Promise.all([
 
 self.addEventListener('fetch',e=>{
   e.respondWith((async()=>{
+    const url=new URL(e.request.url);
+    const vocabShell=e.request.mode==='navigate'&&(url.pathname.endsWith('/vocab/')||url.pathname.endsWith('/vocab/index.html'));
     try{
       const network=await fetch(e.request);
-      const response=e.request.mode==='navigate'
+      const response=vocabShell
         ? await injectImageImport(network)
         : network;
       const copy=response.clone();
@@ -40,7 +42,7 @@ self.addEventListener('fetch',e=>{
     }catch(err){
       let cached=await caches.match(e.request);
       if(!cached&&e.request.mode==='navigate')cached=await caches.match('./index.html');
-      if(cached&&e.request.mode==='navigate')return injectImageImport(cached);
+      if(cached&&vocabShell)return injectImageImport(cached);
       return cached||Response.error();
     }
   })());

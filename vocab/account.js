@@ -37,33 +37,44 @@
     }
     return body
   }
-  function makeBundle(){
+  async function trioApi(){
+    const frame=el('trioFrame');
+    if(!frame)return null;
+    if(frame.contentWindow?.VocabStarTrioCloud)return frame.contentWindow.VocabStarTrioCloud;
+    await new Promise(resolve=>{frame.addEventListener('load',resolve,{once:true});setTimeout(resolve,2500)});
+    return frame.contentWindow?.VocabStarTrioCloud||null
+  }
+  async function makeBundle(){
     const auxiliary={};
     for(let i=0;i<localStorage.length;i++){
       const key=localStorage.key(i);
       if(key?.startsWith('vocabstar_')&&![DATA_KEY,SESSION_KEY,USER_KEY,DIRTY_KEY].includes(key))auxiliary[key]=localStorage.getItem(key);
     }
-    return {version:1,state,auxiliary}
+    const trio=await trioApi();
+    return {version:2,state,auxiliary,trio:trio?await trio.exportData():null}
   }
-  function applyBundle(bundle){
+  async function applyBundle(bundle){
     if(!bundle?.state?.files?.length)throw new Error('クラウドデータの形式が正しくありません。');
     applyingCloud=true;
-    try{localStorage.setItem(`vocabstar_pre_cloud_backup_${Date.now()}`,JSON.stringify(state))}catch(e){}
-    state=ensureUserDataShape(bundle.state);
-    localStorage.setItem(DATA_KEY,JSON.stringify(state));
-    Object.entries(bundle.auxiliary||{}).forEach(([key,value])=>{
-      if(key.startsWith('vocabstar_')&&typeof value==='string')localStorage.setItem(key,value)
-    });
-    activeFileId=state.files[0].id;activeListId=state.files[0].lists[0].id;viewMode='list';
-    autoSpeak.checked=Boolean(state.settings.autoSpeak);
-    render();
-    applyingCloud=false
+    try{
+      try{localStorage.setItem(`vocabstar_pre_cloud_backup_${Date.now()}`,JSON.stringify(state))}catch(e){}
+      state=ensureUserDataShape(bundle.state);
+      localStorage.setItem(DATA_KEY,JSON.stringify(state));
+      Object.entries(bundle.auxiliary||{}).forEach(([key,value])=>{
+        if(key.startsWith('vocabstar_')&&typeof value==='string')localStorage.setItem(key,value)
+      });
+      activeFileId=state.files[0].id;activeListId=state.files[0].lists[0].id;viewMode='list';
+      autoSpeak.checked=Boolean(state.settings.autoSpeak);
+      render();
+      const trio=await trioApi();
+      if(bundle.trio&&trio)await trio.importData(bundle.trio)
+    }finally{applyingCloud=false}
   }
   async function upload(){
     if(!token||applyingCloud)return;
     clearTimeout(syncTimer);setStatus('同期中…','syncing');
     try{
-      const result=await api('/api/data',{method:'PUT',body:JSON.stringify({data:makeBundle()})});
+      const result=await api('/api/data',{method:'PUT',body:JSON.stringify({data:await makeBundle()})});
       localStorage.removeItem(DIRTY_KEY);setStatus('同期済み','online');
       el('lastSyncText').textContent=`最終同期: ${new Date(result.updatedAt).toLocaleString()}`
       return true
@@ -73,6 +84,7 @@
     if(!token||applyingCloud)return;
     localStorage.setItem(DIRTY_KEY,'1');clearTimeout(syncTimer);setStatus('変更あり','syncing');syncTimer=setTimeout(()=>upload().catch(()=>{}),700)
   }
+  window.addEventListener('vocabstar-trio-changed',scheduleUpload);
   const originalSave=window.save;
   window.save=function(){originalSave();scheduleUpload()};
 
@@ -103,7 +115,7 @@
     finally{el('authSubmitBtn').disabled=false}
   };
   el('migrateLocalBtn').onclick=async()=>{try{if(pendingCloudData)try{localStorage.setItem(`vocabstar_cloud_backup_${Date.now()}`,JSON.stringify(pendingCloudData))}catch(e){}await upload();pendingCloudData=null;el('migrationDialog').close()}catch(error){alert(error.message)}};
-  el('useCloudBtn').onclick=async()=>{try{const cloud=await api('/api/data');applyBundle(cloud.data);pendingCloudData=null;el('migrationDialog').close();setStatus('同期済み','online')}catch(error){alert(error.message)}};
+  el('useCloudBtn').onclick=async()=>{try{const cloud=await api('/api/data');await applyBundle(cloud.data);pendingCloudData=null;el('migrationDialog').close();setStatus('同期済み','online')}catch(error){alert(error.message)}};
   el('keepLocalBtn').onclick=async()=>{try{await api('/api/logout',{method:'POST'})}catch(e){}pendingCloudData=null;setSession('','');el('migrationDialog').close()};
   el('syncNowBtn').onclick=()=>upload().catch(error=>alert(error.message));
   el('logoutBtn').onclick=async()=>{
@@ -118,7 +130,7 @@
     if(localStorage.getItem(DIRTY_KEY))await upload();
     else{
       const cloud=await api('/api/data');
-      if(cloud.data)applyBundle(cloud.data)
+      if(cloud.data)await applyBundle(cloud.data)
     }
   }).catch(()=>setSession('',''));
 })();

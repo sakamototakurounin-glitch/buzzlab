@@ -118,6 +118,10 @@
     .accountForm{display:grid;gap:10px}
     .accountError{color:var(--danger);font-size:13px;min-height:1.3em}
     .migrationChoice{display:grid;gap:8px;margin-top:12px}
+    .modeSwitch{display:inline-grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border:1px solid var(--line);border-radius:12px;background:#eef2f7}
+    .modeSwitch button{min-height:38px;border:0;border-radius:9px;padding:7px 13px;background:transparent;color:var(--sub);font-weight:750;cursor:pointer}
+    .modeSwitch button.active{background:#fff;color:var(--accent);box-shadow:0 1px 5px rgba(0,0,0,.1)}
+    .trioFrame{display:block;width:100%;height:calc(100dvh - 92px);min-height:620px;margin-top:10px;border:0;border-radius:16px;background:var(--bg)}
 
     /* iPadを含むタッチ端末は、ファイル欄→単語帳欄の縦並びにする。 */
     @media (max-width:1100px), (hover: none) and (pointer: coarse){
@@ -128,6 +132,9 @@
       .top .muted{display:none}
       .top>.row{margin-left:auto;flex-wrap:nowrap}
       .top .btn{padding:6px 7px;font-size:11px}
+      .modeSwitch{order:3;width:100%;grid-template-columns:1fr 1fr}
+      .modeSwitch button{min-height:42px;padding:8px}
+      .trioFrame{height:calc(100dvh - 132px);min-height:520px;margin-top:7px;border-radius:12px}
       .grid{display:block;margin-top:7px}
       aside.card{padding:9px;margin-bottom:9px}
       main.card{padding:9px}
@@ -175,8 +182,13 @@
   <div class="top">
     <div><div class="brand">VocabStar</div><div class="muted">英単語特化・オフライン単語帳</div></div>
     <div class="row"><span class="accountStatus" id="accountStatus"><span class="accountDot" id="accountDot"></span><span id="accountStatusText">この端末のみ</span></span><button class="btn" id="accountBtn">ログイン</button><button class="btn" id="recoveryBtn">旧データ確認</button><button class="btn" id="exportBtn">バックアップ</button><button class="btn" id="restoreBtn">復元</button></div>
+    <div class="modeSwitch" role="tablist" aria-label="単語帳モード">
+      <button id="vocabModeBtn" class="active" role="tab" aria-selected="true">VocabStar</button>
+      <button id="trioModeBtn" role="tab" aria-selected="false">Trio</button>
+    </div>
   </div>
 
+  <section id="vocabMode">
   <div class="topSearch">
     <input class="input" id="searchInput" placeholder="英単語 / 日本語で検索">
   </div>
@@ -252,6 +264,8 @@
       <div class="empty hidden" id="emptyState">この表示に該当する単語がありません。</div>
     </main>
   </div>
+  </section>
+  <iframe id="trioFrame" class="trioFrame hidden" title="Trio 三点式単語帳" src="./trio.html"></iframe>
 </div>
 
 <dialog id="nameDialog"><div class="modal">
@@ -838,5 +852,22 @@ render();
 </script>
 <script src="./account-config.js"></script>
 <script src="./account.js"></script>
+<script>
+(()=>{
+  const vocabMode=document.getElementById('vocabMode'),trioFrame=document.getElementById('trioFrame');
+  const vocabButton=document.getElementById('vocabModeBtn'),trioButton=document.getElementById('trioModeBtn');
+  function setAppMode(mode,updateUrl=true){
+    const trio=mode==='trio';
+    vocabMode.classList.toggle('hidden',trio);trioFrame.classList.toggle('hidden',!trio);
+    vocabButton.classList.toggle('active',!trio);trioButton.classList.toggle('active',trio);
+    vocabButton.setAttribute('aria-selected',String(!trio));trioButton.setAttribute('aria-selected',String(trio));
+    if(updateUrl){const url=new URL(location.href);if(trio)url.searchParams.set('mode','trio');else url.searchParams.delete('mode');history.replaceState(null,'',url)}
+  }
+  vocabButton.addEventListener('click',()=>setAppMode('vocabstar'));
+  trioButton.addEventListener('click',()=>setAppMode('trio'));
+  setAppMode(new URL(location.href).searchParams.get('mode')==='trio'?'trio':'vocabstar',false);
+  window.VocabStarModes={set:setAppMode};
+})();
+</script>
 </body>
 </html>

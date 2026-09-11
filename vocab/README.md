@@ -5,16 +5,18 @@
 ## 現在の保存方式と互換性
 
 - 主データ: `localStorage` の `vocabstar_v3`
+- Trioデータ: 専用IndexedDB `vocabstar-trio-integrated-db-v1` と `vocabstar_trio_study_progress_v1`
 - 旧版データ: `vocabstar_v1`
 - 復旧バックアップ: `vocabstar_recovery_backup_<日時>`
 - ログイン情報: `vocabstar_account_session_v1`（ランダムな30日セッション）
 - アカウント追加後も `vocabstar_v3` と `vocabstar_v1` は削除しません。
-- クラウドには `vocabstar_v3` の内容（単語帳、重要度、お気に入り相当、画像、設定、学習履歴）と、旧版・復旧用の補助データをユーザー別に保存します。
+- クラウドには `vocabstar_v3` の内容（単語帳、重要度、お気に入り相当、画像、設定、学習履歴）、Trioのフォルダ・セット・三項目・画像・学習進捗、旧版・復旧用の補助データをユーザー別に保存します。
 - 初回ログイン時は、端末データをアップロードするか、クラウドデータを取得するかを必ず選びます。クラウドデータで端末表示を置き換える前に、元の端末データを `vocabstar_pre_cloud_backup_<日時>` として残します。
 
 ## 構成
 
 - `index.html`: 既存アプリとアカウント画面
+- `trio.html`: 写真対応の三点式単語帳モード
 - `image-import.js`: 画像付きインポート
 - `account.js`: ログイン、移行、同期
 - `account-config.js`: Workerの公開URL（秘密情報ではありません）
