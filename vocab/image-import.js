@@ -1,6 +1,8 @@
 (()=>{
   if(window.__vocabstarImageImportV1)return;
   window.__vocabstarImageImportV1=true;
+  const importDialogNode=document.getElementById('importDialog');
+  if(!importDialogNode||!document.getElementById('importText'))return;
 
   const style=document.createElement('style');
   style.textContent=`
@@ -26,7 +28,7 @@
   const imageStatus=imageBox.querySelector('#bulkImageStatus');
   let imageFiles=new Map();
 
-  const help=importDialog.querySelector('.help');
+  const help=importDialogNode.querySelector('.help');
   if(help){
     help.innerHTML='1行1件：<b>表面[TAB]裏面[TAB]例文（任意）[TAB]画像ファイル名（任意）</b><br>国旗セットは <b>国名｜首都｜画像ファイル名</b> のまま貼り付けできます。';
   }
@@ -125,7 +127,7 @@
       }
 
       save();
-      importDialog.close();
+      importDialogNode.close();
 
       let msg=`${added}件を追加しました。`;
       if(imagesAdded)msg+=`\n画像 ${imagesAdded}枚を登録しました。`;
