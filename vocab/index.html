@@ -119,7 +119,8 @@
     .accountError{color:var(--danger);font-size:13px;min-height:1.3em}
     .migrationChoice{display:grid;gap:8px;margin-top:12px}
 
-    @media(max-width:800px){
+    /* iPadを含むタッチ端末は、ファイル欄→単語帳欄の縦並びにする。 */
+    @media (max-width:1100px), (hover: none) and (pointer: coarse){
       body{background:#fff}
       .app{padding:9px 8px calc(16px + env(safe-area-inset-bottom))}
       .top{gap:6px}
