@@ -1,4 +1,4 @@
-const CACHE='vocabstar-cache-v19-trio-guard';
+const CACHE='vocabstar-cache-v20-sync-ready';
 const ASSETS=['./','./index.html','./trio.html','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
 
 async function injectImageImport(resp){

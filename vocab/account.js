@@ -11,6 +11,10 @@
   let syncTimer=null;
   let applyingCloud=false;
   let pendingCloudData=null;
+  function withTimeout(promise,message,ms=20000){
+    let timer;
+    return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),ms)})]).finally(()=>clearTimeout(timer))
+  }
 
   const el=id=>document.getElementById(id);
   const countWords=x=>(x?.files||[]).reduce((n,f)=>n+(f.lists||[]).reduce((m,l)=>m+(l.words||[]).length,0),0);
@@ -29,8 +33,16 @@
     if(!API_BASE)throw new Error('アカウント機能の接続先がまだ設定されていません。');
     const headers={'Content-Type':'application/json',...(options.headers||{})};
     if(token)headers.Authorization=`Bearer ${token}`;
-    const response=await fetch(`${API_BASE}${path}`,{...options,headers});
-    let body={};try{body=await response.json()}catch(e){}
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),20000);
+    let response,body={};
+    try{
+      response=await fetch(`${API_BASE}${path}`,{...options,headers,signal:controller.signal});
+      try{body=await response.json()}catch(e){if(controller.signal.aborted)throw e}
+    }catch(error){
+      if(controller.signal.aborted)throw new Error('通信がタイムアウトしました。端末のデータは残っています。「今すぐ同期」で再試行してください。');
+      throw error
+    }finally{clearTimeout(timer)}
     if(!response.ok){
       if(response.status===401)setSession('','');
       throw new Error(body.error||'通信に失敗しました。');
@@ -42,7 +54,9 @@
     if(!frame)return null;
     if(frame.contentWindow?.VocabStarTrioCloud)return frame.contentWindow.VocabStarTrioCloud;
     await new Promise(resolve=>{frame.addEventListener('load',resolve,{once:true});setTimeout(resolve,2500)});
-    return frame.contentWindow?.VocabStarTrioCloud||null
+    const trio=frame.contentWindow?.VocabStarTrioCloud;
+    if(!trio)throw new Error('Trioの読み込みが完了していません。ページを開き直して同期してください。');
+    return trio
   }
   async function makeBundle(){
     const auxiliary={};
@@ -51,7 +65,7 @@
       if(key?.startsWith('vocabstar_')&&![DATA_KEY,SESSION_KEY,USER_KEY,DIRTY_KEY].includes(key))auxiliary[key]=localStorage.getItem(key);
     }
     const trio=await trioApi();
-    return {version:2,state,auxiliary,trio:trio?await trio.exportData():null}
+    return {version:2,state,auxiliary,trio:trio?await withTimeout(trio.exportData(),'Trioの保存データを読み込めませんでした。端末のデータは残っています。ページを開き直して同期してください。'):null}
   }
   async function applyBundle(bundle){
     if(!bundle?.state?.files?.length)throw new Error('クラウドデータの形式が正しくありません。');
@@ -67,7 +81,7 @@
       autoSpeak.checked=Boolean(state.settings.autoSpeak);
       render();
       const trio=await trioApi();
-      if(bundle.trio&&trio)await trio.importData(bundle.trio)
+      if(bundle.trio&&trio)await withTimeout(trio.importData(bundle.trio),'Trioデータの読み込みがタイムアウトしました。ページを開き直してください。')
     }finally{applyingCloud=false}
   }
   async function upload(){

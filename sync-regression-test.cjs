@@ -1,0 +1,26 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+(async()=>{
+  const html=fs.readFileSync('vocab/trio.html','utf8');
+  const initializers=[...html.matchAll(/async function init\(\)\{([\s\S]*?)\n\}/g)];
+  let ready=false;
+  const ctx={openDB:async()=>{},getMeta:async()=>[],getAll:async()=>[],migrateLegacy:async()=>{},ensureDeckSchemas:()=>false,saveDecks:async()=>{},decksInFolder:()=>[],syncSettingsUI:()=>{},renderAll:()=>{},prepareStudy:()=>{},newQuiz:()=>{},cloudReadyResolve:()=>{ready=true}};
+  vm.createContext(ctx);
+  await vm.runInContext('(async()=>{'+initializers.at(-1)[1]+'})()',ctx);
+  assert.equal(ready,true,'effective Trio initializer must resolve readiness');
+  const store=new Map([['vocabstar_account_session_v1','test-token'],['vocabstar_account_user_v1','test-user'],['vocabstar_account_dirty_v1','1']]);
+  const elements=new Map();const el=id=>{if(!elements.has(id))elements.set(id,{className:'',textContent:'',checked:false,close(){},showModal(){}});return elements.get(id)};
+  const trioData={version:1,folders:[],decks:[],items:[]};
+  el('trioFrame').contentWindow={VocabStarTrioCloud:{exportData:async()=>trioData}};
+  const requests=[];
+  const state={files:[{id:'existing-file',lists:[{words:[{en:'preserved'}]}]}]};
+  const env={state,window:{VOCABSTAR_CONFIG:{apiBaseUrl:'https://test.invalid'},save(){},addEventListener(){}},document:{getElementById:el},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k),key:i=>[...store.keys()][i],get length(){return store.size}},setTimeout,clearTimeout,AbortController,console,autoSpeak:el('autoSpeak'),render(){},ensureUserDataShape:x=>x,alert(){}};
+  env.fetch=async(url,opts)=>{requests.push({url,opts});return {ok:true,json:async()=>url.endsWith('/api/me')?{username:'test-user'}:{ok:true,updatedAt:new Date().toISOString()}}};
+  vm.createContext(env);vm.runInContext(fs.readFileSync('vocab/account.js','utf8'),env);
+  await new Promise(resolve=>setTimeout(resolve,30));
+  const saved=requests.find(r=>r.opts.method==='PUT');assert.ok(saved,'sync reaches API');
+  const bundle=JSON.parse(saved.opts.body).data;assert.deepEqual(bundle.state,state);assert.deepEqual(bundle.trio,trioData);assert.equal(el('accountStatusText').textContent,'同期済み');assert.equal(store.has('vocabstar_account_dirty_v1'),false);
+  el('trioFrame').contentWindow.VocabStarTrioCloud.exportData=()=>Promise.reject(new Error('Trio test failure'));
+  store.set('vocabstar_account_dirty_v1','1');await el('syncNowBtn').onclick();
+  assert.equal(el('accountStatusText').textContent,'同期できません');assert.equal(store.has('vocabstar_account_dirty_v1'),true);
+  console.log('PASS: Trio readiness, combined upload, existing words preserved, failure retains pending data.');
+})().catch(error=>{console.error(error);process.exitCode=1});
