@@ -436,6 +436,8 @@ footer{text-align:center;color:#9aa2b3;font-size:12px;padding:20px}
           <label class="sub"><input type="checkbox" id="quizShuffle" checked> 🔀 問題順シャッフル</label>
         </div>
       </div>
+      <label class="sub">出題方向 <select id="quizDirection"></select></label>
+      <div class="sub">登録された対応を問います。空欄・複数正解を除外し、異なる4択で出題します。</div>
       <div id="quizArea"></div>
       <div class="row end"><button class="btn primary" id="nextQuiz">次の問題</button></div>
     </section>
@@ -459,6 +461,7 @@ france.png   フランス   パリ
 
 <div id="deckModal" class="modal hidden"><div class="sheet"><h3>セットを追加</h3><div class="field"><label>セット名</label><input id="newDeckName" placeholder="例：国旗・国名・首都 1"></div><div class="sheet-actions"><button class="btn" data-close>キャンセル</button><button class="btn primary" id="createDeck">追加</button></div></div></div>
 
+<script src="./quiz-core.js"></script>
 <script>
 const DB_NAME='vocabstar-trio-integrated-db-v1', DB_VERSION=1;
 let cloudImporting=false;
@@ -1026,7 +1029,8 @@ function quizSessionKey(pool){
     currentDeck||'',
     $('#quizStarOnly')?.checked?'star':'all',
     $('#quizShuffle')?.checked?'shuffle':'ordered',
-    pool.map(x=>x.id).join(',')
+    $('#quizDirection')?.value||'',
+    JSON.stringify(pool.map(x=>[x.id,x.values]))
   ].join('|');
 }
 
@@ -1040,9 +1044,15 @@ function resetQuizQueue(pool=quizPool()){
 function newQuiz(){
   syncStudyQuizSelectors();
   let pool=quizPool(),qa=$('#quizArea');
-
-  if(pool.length<2){
-    qa.innerHTML='<div class="empty">四択には表示中のセット内に2件以上必要です。</div>';
+  const schema=deckSchema(currentDeck);
+  const direction=$('#quizDirection'),old=direction.value;
+  direction.innerHTML=Array.from({length:3},(_,p)=>Array.from({length:3},(_,a)=>p===a?'':`<option value="${p},${a}">${esc(schema.labels[p])} → ${esc(schema.labels[a])}</option>`).join('')).join('');
+  if(old)direction.value=old;
+  const [promptIdx,answerIdx]=direction.value.split(',').map(Number);
+  const candidates=QuizCore.build(pool,x=>x.values[promptIdx],x=>x.values[answerIdx],{reference:currentDeck?itemsInDeck(currentDeck):[]});
+  pool=candidates.map(q=>q.answer);
+  if(!pool.length){
+    qa.innerHTML='<div class="empty">この方向で成立する4択がありません。異なる答えが4種類以上必要です。空欄や同じ問題に複数の答えがある項目は除外します。出題方向や登録内容を確認してください。</div>';
     quizState=null;
     quizSession={deckId:null,key:'',queue:[],pos:0};
     return;
@@ -1053,15 +1063,9 @@ function newQuiz(){
     resetQuizQueue(pool);
   }
 
-  const schema=deckSchema(currentDeck);
   const answer=quizSession.queue[quizSession.pos++];
-  let pairs=[];
-  for(let p=0;p<3;p++)for(let a=0;a<3;a++)if(p!==a)pairs.push([p,a]);
-
-  let [promptIdx,answerIdx]=pairs[Math.floor(Math.random()*pairs.length)];
-  let valid=pool.filter(x=>x.id!==answer.id&&x.values[answerIdx]&&x.values[answerIdx]!==answer.values[answerIdx]);
-  let count=Math.min(3,valid.length);
-  let choices=[answer,...sample(valid,count)].sort(()=>Math.random()-.5);
+  const valid=candidates.find(q=>q.answer===answer).distractors;
+  let choices=shuffleCopy([answer,...sample(valid,3)]);
 
   quizState={
     answerId:answer.id,
@@ -1162,6 +1166,7 @@ $('#studyStarOnly').onchange=()=>{if(!studySession.active)prepareStudy()};
 $('#studyShuffle').onchange=()=>{if(!studySession.active)prepareStudy()};
 $('#quizStarOnly').onchange=()=>{quizSession.key='';newQuiz()};
 $('#quizShuffle').onchange=()=>{quizSession.key='';newQuiz()};
+$('#quizDirection').onchange=()=>{quizSession.key='';newQuiz()};
 $('#saveSettings').onclick=async()=>{
   let d=decks.find(x=>x.id===currentDeck);if(!d)return;
   d.labels=[0,1,2].map(i=>$('#label'+i).value.trim()||`項目${i+1}`);

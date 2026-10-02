@@ -400,6 +400,7 @@
   </div>
 </div></dialog>
 
+<script src="./quiz-core.js"></script>
 <script>
 const KEY='vocabstar_v3';
 const LEGACY_KEY='vocabstar_v1';
@@ -756,22 +757,17 @@ startTestBtn.onclick=()=>{
   const pool=wordsForView();
   if(pool.length<4){alert('4択テストには対象単語が4語以上必要です。');return}
 
-  // 正解と同じ品詞の単語だけを誤答候補にする
-  const viable=pool.filter(ans=>{
-    const type=inferType(ans);
-    return pool.filter(w=>w.id!==ans.id && inferType(w)===type).length>=3
-  });
+  // Ask stored meanings instead of inventing ambiguous cloze sentences.
+  const viable=QuizCore.build(pool,w=>w.en,w=>w.jp,{aliases:true});
   if(!viable.length){
-    alert('同じ品詞の単語が4語以上あるグループが必要です。単語を増やしてから試してください。');
+    alert('成立する4択がありません。英語と意味を登録した単語が4語以上必要です。空欄・同じ英語に複数の答え・意味の重複は除外します。');
     return
   }
 
   const selected=shuffle(viable).slice(0,Math.min(20,viable.length));
-  const qs=selected.map(ans=>{
-    const type=inferType(ans);
-    const sameType=pool.filter(w=>w.id!==ans.id && inferType(w)===type);
-    const distract=shuffle(sameType).slice(0,3);
-    return {answer:ans,choices:shuffle([ans,...distract]),sentence:makeSentence(ans),type}
+  const qs=selected.map(({answer:ans,distractors})=>{
+    const distract=shuffle(distractors).slice(0,3);
+    return {answer:ans,choices:shuffle([ans,...distract]),sentence:`「${ans.en}」の登録された意味は？`}
   });
 
   testState={questions:qs,index:0,score:0,answered:false};
@@ -780,12 +776,12 @@ startTestBtn.onclick=()=>{
 function showQ(){
   const q=testState.questions[testState.index];testProgress.textContent=`${testState.index+1} / ${testState.questions.length}`;
   sentence.textContent=q.sentence;feedback.textContent='';nextQBtn.classList.add('hidden');choices.innerHTML='';
-  q.choices.forEach((w,i)=>{const b=document.createElement('button');b.className='choice';b.textContent=`${String.fromCharCode(65+i)}. ${w.en}`;b.onclick=()=>answerQ(b,w,q);choices.appendChild(b)})
+  q.choices.forEach((w,i)=>{const b=document.createElement('button');b.className='choice';b.textContent=`${String.fromCharCode(65+i)}. ${w.jp}`;b.dataset.correct=String(w===q.answer);b.onclick=()=>answerQ(b,w,q);choices.appendChild(b)})
 }
 function answerQ(btn,w,q){
   if(testState.answered)return;testState.answered=true;
-  [...choices.children].forEach(b=>{if(b.textContent.includes(q.answer.en))b.classList.add('correct')});
-  if(w.id===q.answer.id){testState.score++;feedback.textContent='正解！'}else{btn.classList.add('wrong');feedback.textContent=`不正解。正解は ${q.answer.en}（${q.answer.jp}）`}
+  [...choices.children].forEach(b=>{b.disabled=true;if(b.dataset.correct==='true')b.classList.add('correct')});
+  if(w===q.answer){testState.score++;feedback.textContent='正解！'}else{btn.classList.add('wrong');feedback.textContent=`不正解。登録された意味は ${q.answer.jp}`}
   nextQBtn.classList.remove('hidden')
 }
 nextQBtn.onclick=()=>{
