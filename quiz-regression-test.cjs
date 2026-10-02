@@ -33,7 +33,7 @@ elements.children[0].onclick();
 assert.equal(ctx.testState.score,1);
 assert(elements.children.every(x=>x.disabled));
 const trioHtml=fs.readFileSync('vocab/trio.html','utf8');
-const start=trioHtml.indexOf('function quizPool(){');
+const start=trioHtml.lastIndexOf('function quizPool(){');
 const end=trioHtml.indexOf('function closeModals()',start);
 let data=trio;
 const ui={quizStarOnly:{checked:false},quizShuffle:{checked:true},quizDirection:{value:'0,1'},quizArea:{innerHTML:''}};
