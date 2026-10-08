@@ -205,6 +205,7 @@
         <button class="iconbtn" id="deleteFileBtn">削除</button>
       </div>
 
+      <button class="btn" id="fileExportBtn" style="width:100%;margin-top:10px">全単語をエクスポート</button>
       <div class="subhead">
         <b>単語帳リスト</b>
         <button class="btn small primary" id="addListBtn">＋単語帳</button>
@@ -619,6 +620,22 @@ document.querySelectorAll('.listFilterBtn').forEach(b=>b.onclick=()=>{
 fileStar1Btn.onclick=()=>{viewMode='star1';searchInput.value='';render()};
 fileStar2Btn.onclick=()=>{viewMode='star2';searchInput.value='';render()};
 
+
+/* File export ignores search, stars and the currently selected list. */
+function exportFileWords(){
+  const file=currentFile();
+  const words=(file?.lists||[]).flatMap(list=>list.words||[]);
+  if(!words.length){alert('このファイルにはエクスポートする単語がありません。');return}
+  const clean=s=>String(s??'').replace(/\t/g,' ').replace(/\r?\n/g,' ');
+  const text=words.map(w=>[clean(w.en),clean(w.jp),clean(w.example)].join('\t')).join('\n');
+  const safeName=(file.name||'VocabStar').replace(/[\\/:*?"<>|]/g,'_');
+  const url=URL.createObjectURL(new Blob([text],{type:'text/tab-separated-values;charset=utf-8'}));
+  const a=document.createElement('a');
+  a.href=url;a.download=`${safeName}_all_words.tsv`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+document.getElementById('fileExportBtn').onclick=exportFileWords;
 
 /* star merged export */
 function exportStarMerged(){
