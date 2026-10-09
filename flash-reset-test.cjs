@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync('vocab/index.html','utf8');
+const code=html.slice(html.indexOf('function showFlash(){'),html.indexOf('function judgeFlash('));
+const classes=new Set(['flipped']);let layoutReads=0;
+const classList={add:x=>classes.add(x),remove:x=>classes.delete(x),toggle(){}};
+const ctx={flashState:{items:[{en:'new',jp:'新しい答え',example:'example',star:2}],index:0,known:[],unknown:[],round:1},flashCard:{classList,querySelector:()=>({get offsetWidth(){assert(classes.has('resetting'));assert(!classes.has('flipped'));layoutReads++;return 300}})},autoSpeak:{checked:false}};
+for(const name of ['flashEmpty','flashArea','flashWord','flashJp','flashEx','flashProgress','flashKnownCount','flashUnknownCount','flashRoundCount','flashStar1','flashStar2'])ctx[name]={classList};
+vm.createContext(ctx);vm.runInContext(code,ctx);
+ctx.showFlash();assert.equal(layoutReads,1);assert(!classes.has('flipped'));assert(!classes.has('resetting'));assert.equal(ctx.flashJp.textContent,'新しい答え');
+classes.add('flipped');ctx.showFlash();assert.equal(layoutReads,2);assert(!classes.has('flipped'));
+assert(html.includes('.flashCard.resetting .flashInner{transition:none;transform:rotateY(0deg)}'));
+console.log('PASS: turned-back card resets instantly before transition is restored; new answer, repeated reset and Safari backface rule');

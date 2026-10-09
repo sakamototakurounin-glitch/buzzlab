@@ -82,6 +82,9 @@
     .flashCard{height:320px;perspective:1000px;cursor:pointer;user-select:none;margin-top:10px}
     .flashInner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .35s}
     .flashCard.flipped .flashInner{transform:rotateY(180deg)}
+    .flashCard.resetting .flashInner{transition:none;transform:rotateY(0deg)}
+    .flashCard.resetting .flashBack{visibility:hidden}
+    .flashFace{-webkit-backface-visibility:hidden}
     .flashFace{position:absolute;inset:0;backface-visibility:hidden;border:1px solid var(--line);border-radius:20px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px;text-align:center;box-shadow:0 8px 22px rgba(0,0,0,.07)}
     .flashBack{transform:rotateY(180deg)}
     .flashWord{font-size:34px;font-weight:850;overflow-wrap:anywhere}
@@ -734,8 +737,12 @@ function showFlash(){
   if(!ok)return;
   if(flashState.index>=flashState.items.length){finishFlashRound();return}
   const w=flashState.items[flashState.index];
+  // Reset without animating the new answer from back to front.
+  flashCard.classList.add('resetting');
   flashCard.classList.remove('flipped');
   flashWord.textContent=w.en;flashJp.textContent=w.jp;flashEx.textContent=w.example||'';
+  void flashCard.querySelector('.flashInner').offsetWidth;
+  flashCard.classList.remove('resetting');
   flashProgress.textContent=`${flashState.index+1} / ${flashState.items.length}`;
   flashKnownCount.textContent=`わかった ${flashState.known.length}`;
   flashUnknownCount.textContent=`わからない ${flashState.unknown.length}`;
