@@ -231,6 +231,7 @@
           <div class="row">
             <h2 id="deckTitle" style="margin:0">単語帳</h2>
             <button class="btn small" id="renameListBtn">名前変更</button>
+            <button class="btn small" id="splitListBtn">n等分</button>
             <span class="modeBadge hidden" id="modeBadge"></span>
           </div>
           <div class="muted" id="deckMeta"></div>
@@ -598,6 +599,31 @@ renameListBtn.onclick=()=>{
   const l=currentList();
   if(!l){alert('名前を変更する単語帳を選んでください。');return}
   renameList(l.id)
+};
+function partitionWords(words,n){
+  if(!Number.isSafeInteger(n)||n<2||n>words.length)throw new Error('Invalid partition count');
+  const base=Math.floor(words.length/n),extra=words.length%n;
+  let offset=0;
+  return Array.from({length:n},(_,i)=>{
+    const size=base+(i<extra?1:0),part=words.slice(offset,offset+size);
+    offset+=size;return part;
+  });
+}
+document.getElementById('splitListBtn').onclick=()=>{
+  if(!viewMode.startsWith('list')){alert('分割する単語帳を選択してください。');return}
+  const file=currentFile(),list=currentList();
+  if(!list||list.words.length<2){alert('分割には2語以上必要です。');return}
+  const input=prompt(`「${list.name}」の全${list.words.length}語を何等分しますか？\n2〜${list.words.length}の整数を入力してください。`,'2');
+  if(input===null)return;
+  const n=Number(input.trim());
+  if(!Number.isSafeInteger(n)||n<2||n>list.words.length){alert(`2〜${list.words.length}の整数を入力してください。`);return}
+  const parts=partitionWords(list.words,n);
+  const names=parts.map((_,i)=>`${list.name}-(${i+1})`);
+  if(file.lists.some(l=>l!==list&&names.includes(l.name))){alert('分割後と同名の単語帳が既にあります。元の単語帳の名前を変更してから試してください。');return}
+  if(!confirm(`「${list.name}」を次の${n}冊に置き換えます。\n${parts.map((p,i)=>`${names[i]}：${p.length}語`).join('\n')}\n\n全単語・順序・星・例文は保持します。絞り込み中でも全単語を分割します。`))return;
+  const lists=parts.map((words,i)=>makeList(names[i],words));
+  file.lists.splice(file.lists.indexOf(list),1,...lists);
+  activeListId=lists[0].id;viewMode='list';searchInput.value='';save();
 };
 function renameList(id){
   const l=currentFile().lists.find(x=>x.id===id);if(!l)return;

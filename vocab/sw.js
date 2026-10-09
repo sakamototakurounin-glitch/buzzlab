@@ -1,4 +1,4 @@
-const CACHE='vocabstar-cache-v22-file-export';
+const CACHE='vocabstar-cache-v23-split-list';
 const ASSETS=['./','./index.html','./trio.html','./quiz-core.js','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
 
 async function injectImageImport(resp){

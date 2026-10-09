@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync('vocab/index.html','utf8');
+const src=html.slice(html.indexOf('function partitionWords('),html.indexOf('function renameList('));
+const original={id:'old',name:'My Words',words:Array.from({length:10},(_,id)=>({id:String(id),en:`word${id}`,jp:'意味',star:id%3,example:'example'}))};
+const file={lists:[original]},button={};let input='3',confirmed=true,saves=0;
+const ctx={document:{getElementById:()=>button},viewMode:'listStar1',currentFile:()=>file,currentList:()=>original,prompt:()=>input,confirm:()=>confirmed,alert(){},makeList:(name,words)=>({id:name,name,words:words.map(w=>({...w}))}),save:()=>saves++,searchInput:{value:'search'},activeListId:'old'};
+vm.createContext(ctx);vm.runInContext(src,ctx);
+const before=JSON.stringify(original.words);
+button.onclick();assert.equal(saves,1);
+assert.deepEqual(file.lists.map(l=>l.name),['My Words-(1)','My Words-(2)','My Words-(3)']);
+assert.deepEqual(file.lists.map(l=>l.words.length),[4,3,3]);
+assert.equal(JSON.stringify(file.lists.flatMap(l=>l.words)),before);
+for(const n of [0,1,11,2.5,NaN])assert.throws(()=>ctx.partitionWords(original.words,n));
+file.lists=[original];confirmed=false;button.onclick();assert.equal(file.lists[0],original);assert.equal(saves,1);
+confirmed=true;file.lists.push({name:'My Words-(1)'});button.onclick();assert.equal(saves,1);
+input=null;button.onclick();assert.equal(saves,1);
+console.log('PASS: balanced split, names, order/IDs/stars/examples preserved, invalid count, cancel, name collision, one save');
