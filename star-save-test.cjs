@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync('vocab/index.html','utf8');
+const source=html.slice(html.indexOf('function setStar('),html.indexOf('function deleteWord('));
+const word={star:0};let fail=false,alerts=[],refreshes=0,saves=0;
+const ctx={findStoredWord:()=>word,save(){if(fail)throw Object.assign(new Error('full'),{name:'QuotaExceededError'});saves++},render(){},flashDialog:{open:true},refreshFlash(){refreshes++},alert:t=>alerts.push(t),console:{error(){}}};
+vm.createContext(ctx);vm.runInContext(source,ctx);
+ctx.setStar('id','list',1);assert.equal(word.star,1);
+ctx.setStar('id','list',2);assert.equal(word.star,2);
+ctx.setStar('id','list',2);assert.equal(word.star,0);
+word.star='1';ctx.setStar('id','list',1);assert.equal(word.star,0);
+fail=true;word.star=1;ctx.setStar('id','list',2);assert.equal(word.star,1);assert.equal(alerts.length,1);assert(alerts[0].includes('容量'));
+assert.equal(saves,4);assert.equal(refreshes,5);
+console.log('PASS: star 1/2 toggle, numeric-string compatibility, flash refresh, quota error restores prior star and explains failure');

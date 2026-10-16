@@ -72,7 +72,7 @@
     .audioBtn{border:0;background:#f3f4f6;border-radius:999px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}
     .audioBtn:active{transform:scale(.96)}
     .stars{white-space:nowrap}
-    .stars button{border:0;background:transparent;font-size:20px;padding:0 1px;cursor:pointer}
+    .stars button{border:0;background:transparent;font-size:22px;min-width:44px;min-height:44px;padding:6px;cursor:pointer;touch-action:manipulation}
     .star-on{color:var(--star)}.star-off{color:#d1d5db}
     .empty{padding:26px;text-align:center;color:var(--sub)}
     dialog{border:0;border-radius:16px;padding:0;width:calc(100% - 20px);max-width:720px}
@@ -95,7 +95,7 @@
     .flashControls{display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;margin-top:10px}
     .flashProgress{text-align:center;color:var(--sub);font-size:12px}
     .flashStarbar{display:flex;justify-content:center;gap:5px;margin-top:8px}
-    .flashStarbar button{font-size:27px;border:0;background:transparent;cursor:pointer}
+    .flashStarbar button{font-size:27px;border:0;background:transparent;min-width:48px;min-height:48px;cursor:pointer;touch-action:manipulation}
     .flashScopeTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:9px}
     .flashScopeBtn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 3px;font-size:11px;cursor:pointer}
     .flashScopeBtn.active{border-color:var(--accent);background:var(--accentSoft);color:#1d4ed8;font-weight:700}
@@ -529,8 +529,9 @@ function render(){
     tr.children[0].querySelector('.audioBtn').onclick=e=>{e.stopPropagation();speak(w.en)};
     const stars=tr.children[3];
     [1,2].forEach(n=>{
-      const sb=document.createElement('button');sb.textContent='★';sb.className=w.star>=n?'star-on':'star-off';
-      sb.onclick=()=>setStar(w.id,w.listId,n);stars.appendChild(sb)
+      const sb=document.createElement('button');sb.type='button';sb.textContent='★';sb.className=w.star>=n?'star-on':'star-off';
+      sb.setAttribute('aria-label',`星${n}を切り替え`);sb.setAttribute('aria-pressed',String(w.star===n));
+      sb.onclick=e=>{e.stopPropagation();setStar(w.id,w.listId,n)};stars.appendChild(sb)
     });
     tr.children[4].querySelector('button').onclick=()=>deleteWord(w.id,w.listId);
     wordBody.appendChild(tr)
@@ -538,8 +539,19 @@ function render(){
   emptyState.classList.toggle('hidden',words.length>0)
 }
 function setStar(id,listId,n){
-  const w=findStoredWord(id,listId);if(!w)return;
-  w.star=(w.star===n?0:n);save();
+  const w=findStoredWord(id,listId);
+  if(!w){alert('単語の表示が古くなっています。単語帳を選び直してください。');return}
+  const previous=w.star;
+  w.star=(Number(w.star)===n?0:n);
+  try{save()}catch(error){
+    // A failed localStorage write must not leave an unsaved star in memory.
+    w.star=previous;
+    render();
+    if(flashDialog.open)refreshFlash(id,listId);
+    console.error('VocabStar star save failed:',error);
+    alert(error?.name==='QuotaExceededError'?'端末の保存容量がいっぱいで星を保存できませんでした。サイトデータは消さないでください。バックアップを取得し、不要な集約ファイルがあれば確認してください。':'星の保存に失敗しました。サイトデータは消さず、ブラウザの保存設定を確認してください。');
+    return;
+  }
   if(flashDialog.open)refreshFlash(id,listId)
 }
 function deleteWord(id,listId){
@@ -675,9 +687,24 @@ document.getElementById('allStarFilesBtn').onclick=()=>{
     file.generatedStarCollection=true;
     return file;
   });
+  const previousFileId=activeFileId,previousListId=activeListId,previousView=viewMode,previousSearch=searchInput.value;
   state.files.push(...created);
   const first=created[groups[1].length?0:1];
-  activeFileId=first.id;activeListId=first.lists[0].id;viewMode='list';searchInput.value='';save();
+  activeFileId=first.id;activeListId=first.lists[0].id;viewMode='list';searchInput.value='';
+  const reserveKey='vocabstar_collection_reserve_'+uid();
+  let reserved=false;
+  try{
+    // Keep working room for later star/settings changes, not just the snapshot.
+    localStorage.setItem(reserveKey,' '.repeat(65536));reserved=true;
+    save();
+  }catch(error){
+    state.files.splice(state.files.length-created.length,created.length);
+    activeFileId=previousFileId;activeListId=previousListId;viewMode=previousView;searchInput.value=previousSearch;
+    render();
+    console.error('VocabStar collection save failed:',error);
+    alert('集約ファイルを保存できませんでした。端末の保存容量が不足している可能性があります。元の単語帳は変更していません。サイトデータは消さないでください。');
+    return;
+  }finally{if(reserved)localStorage.removeItem(reserveKey)}
   alert('★1・★★2の集約ファイルを作成しました。作成時点のコピーです。星を変更した後は再作成してください。');
 };
 

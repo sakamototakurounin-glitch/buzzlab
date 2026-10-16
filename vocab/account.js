@@ -100,7 +100,11 @@
   }
   window.addEventListener('vocabstar-trio-changed',scheduleUpload);
   const originalSave=window.save;
-  window.save=function(){originalSave();scheduleUpload()};
+  window.save=function(){
+    originalSave();
+    // Local persistence already succeeded; a sync-marker failure is separate.
+    try{scheduleUpload()}catch(error){setStatus('端末保存済み・同期準備に失敗','');console.error(error)}
+  };
 
   function openAuth(mode='login'){
     authMode=mode;el('authError').textContent='';el('authPassword').value='';
