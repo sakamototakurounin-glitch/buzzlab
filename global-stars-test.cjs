@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('vocab/index.html','utf8');
+const code=html.slice(html.indexOf('function collectGlobalStars('),html.indexOf('/* File export'));
+const words=Array.from({length:101},(_,i)=>({id:'w'+i,en:'word',jp:'意味',example:'例',star:1}));
+const files=[{name:'one',lists:[{words:words.slice(0,60)}]},{name:'two',lists:[{words:[...words.slice(60),{id:'two',en:'two',star:2},{id:'zero',star:0}]}]}];
+const before=JSON.stringify(files);let seq=0,saves=0,accepted=false;const button={};
+const ctx={document:{getElementById:()=>button},state:{files},uid:()=>`new${seq++}`,makeList:(name,words=[])=>({id:`list${seq++}`,name,words}),makeFile:(name,lists)=>({id:`file${seq++}`,name,lists}),confirm:()=>accepted,alert(){},save:()=>saves++,searchInput:{value:'filter'}};
+vm.createContext(ctx);vm.runInContext(code,ctx);button.onclick();assert.equal(files.length,2);
+accepted=true;button.onclick();assert.equal(saves,1);assert.equal(files.length,4);
+assert.deepEqual(Array.from(files[2].lists,l=>l.words.length),[50,50,1]);
+assert.equal(files[3].lists[0].words.length,1);assert.equal(JSON.stringify(files.slice(0,2)),before);
+assert.equal(files[2].lists[0].name,'★1 全単語-(1)');
+assert.equal(files[2].lists[0].words[0].example,'例');
+assert.notEqual(files[2].lists[0].words[0].id,words[0].id);
+button.onclick();assert.equal(files[4].lists.flatMap(l=>l.words).length,101);assert.notEqual(files[4].name,files[2].name);
+assert.equal(new Set(files.slice(2).flatMap(f=>f.lists.flatMap(l=>l.words.map(w=>w.id)))).size,204);
+console.log('PASS: all files, exact star groups, 50/50/1 split, originals unchanged, fresh IDs, cancel, repeat excludes collections');

@@ -209,6 +209,7 @@
       </div>
 
       <button class="btn" id="fileExportBtn" style="width:100%;margin-top:10px">全単語をエクスポート</button>
+      <button class="btn" id="allStarFilesBtn" style="width:100%;margin-top:8px">全ファイルの星を50語ずつ集約</button>
       <div class="subhead">
         <b>単語帳リスト</b>
         <button class="btn small primary" id="addListBtn">＋単語帳</button>
@@ -649,6 +650,36 @@ document.querySelectorAll('.listFilterBtn').forEach(b=>b.onclick=()=>{
 fileStar1Btn.onclick=()=>{viewMode='star1';searchInput.value='';render()};
 fileStar2Btn.onclick=()=>{viewMode='star2';searchInput.value='';render()};
 
+
+function collectGlobalStars(files){
+  const groups={1:[],2:[]};
+  files.filter(f=>!f.generatedStarCollection).forEach(f=>(f.lists||[]).forEach(l=>(l.words||[]).forEach(w=>{
+    if(w.star===1||w.star===2)groups[w.star].push(w);
+  })));
+  return groups;
+}
+document.getElementById('allStarFilesBtn').onclick=()=>{
+  const groups=collectGlobalStars(state.files);
+  if(!groups[1].length&&!groups[2].length){alert('集約できる星付き単語がありません。');return}
+  if(!confirm(`全ファイルから★1：${groups[1].length}語、★★2：${groups[2].length}語をコピーし、2つの新しいファイルに50語ずつまとめます。\n元の単語帳は変更しません。同じ単語の別登録もそのまま含めます。\n作成済みの集約ファイルは対象外です。`))return;
+  const created=[1,2].map(level=>{
+    const base=level===1?'★1 全単語':'★★2 全単語';
+    let name=base,suffix=2;
+    while(state.files.some(f=>f.name===name))name=`${base} (${suffix++})`;
+    const lists=[];
+    for(let i=0;i<groups[level].length;i+=50){
+      const words=groups[level].slice(i,i+50).map(w=>({...w,id:uid()}));
+      lists.push(makeList(`${base}-(${lists.length+1})`,words));
+    }
+    const file=makeFile(name,lists.length?lists:[makeList(`${base}-(1)`)]);
+    file.generatedStarCollection=true;
+    return file;
+  });
+  state.files.push(...created);
+  const first=created[groups[1].length?0:1];
+  activeFileId=first.id;activeListId=first.lists[0].id;viewMode='list';searchInput.value='';save();
+  alert('★1・★★2の集約ファイルを作成しました。作成時点のコピーです。星を変更した後は再作成してください。');
+};
 
 /* File export ignores search, stars and the currently selected list. */
 function exportFileWords(){
