@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync('vocab/index.html','utf8');
+const code=html.slice(html.indexOf('function judgeFlash('),html.indexOf('function finishFlashRound('));
+let saves=0,shows=0;
+const items=[{en:'a'},{en:'b'},{en:'c'}];
+const ctx={flashState:{items,index:0,known:[],unknown:[],history:[]},saveFlashProgress:()=>saves++,showFlash:()=>shows++,finishFlashRound:()=>{}};
+vm.createContext(ctx);vm.runInContext(code,ctx);
+ctx.judgeFlash(true);ctx.judgeFlash(false);
+assert.equal(ctx.flashState.index,2);assert.deepEqual(ctx.flashState.history,[true,false]);
+ctx.prevFlash();
+assert.equal(ctx.flashState.index,1);assert.equal(ctx.flashState.unknown.length,0);assert.equal(ctx.flashState.known.length,1);
+ctx.prevFlash();ctx.prevFlash();
+assert.equal(ctx.flashState.index,0);assert.equal(ctx.flashState.known.length,0);
+assert.ok(saves>=4);
+assert(html.includes("localStorage.setItem(FLASH_PROGRESS_KEY")&&html.includes('id="resumeFlashBtn"'));
+console.log('PASS: back undoes the last judgement, stops at the first card, and progress is saved for resuming');

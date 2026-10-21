@@ -101,6 +101,8 @@
     .flashScopeBtn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 3px;font-size:11px;cursor:pointer}
     .flashScopeBtn.active{border-color:var(--accent);background:var(--accentSoft);color:#1d4ed8;font-weight:700}
     .flashJudge{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}
+    .flashResume{text-align:center;padding:18px 4px}
+    #prevFlashBtn:disabled{opacity:.4;cursor:default}
     .judgeBtn{border:1px solid var(--line);border-radius:12px;padding:12px 8px;background:#fff;font-weight:750;cursor:pointer}
     .judgeUnknown{border-color:#fecaca;background:#fff7f7;color:#b91c1c}
     .judgeKnown{border-color:#bbf7d0;background:#f0fdf4;color:#15803d}
@@ -335,6 +337,13 @@
     <button class="flashScopeBtn" data-scope="star1">★1</button>
     <button class="flashScopeBtn" data-scope="star2">★★</button>
   </div>
+  <div class="flashResume hidden" id="flashResume">
+    <div id="flashResumeText"></div>
+    <div class="summaryActions">
+      <button class="btn primary" id="resumeFlashBtn">続きから</button>
+      <button class="btn" id="freshFlashBtn">最初から</button>
+    </div>
+  </div>
   <div class="empty hidden" id="flashEmpty">対象の単語がありません。</div>
   <div id="flashArea">
     <div class="flashStats">
@@ -362,7 +371,7 @@
       <button class="judgeBtn judgeUnknown" id="unknownFlashBtn">わからない</button>
       <button class="judgeBtn judgeKnown" id="knownFlashBtn">わかった</button>
     </div>
-    <div class="row" style="justify-content:center;margin-top:8px"><button class="btn small" id="shuffleFlashBtn">シャッフル</button></div>
+    <div class="row" style="justify-content:center;margin-top:8px"><button class="btn small" id="prevFlashBtn">← 1つ戻る</button><button class="btn small" id="shuffleFlashBtn">シャッフル</button></div>
   </div>
   <div class="flashSummary hidden" id="flashSummary">
     <h3 id="flashSummaryTitle">1周終了</h3>
@@ -780,15 +789,53 @@ function defaultFlashScope(){
 function flashContextLabel(){
   return `${currentFile().name} / ${(viewMode==='star1'||viewMode==='star2')?'ファイル全体':currentList().name}`
 }
-function startFlashSession(scope=defaultFlashScope()){
-  flashState={scope,original:shuffle(flashWordsForScope(scope)),items:[],index:0,known:[],unknown:[],round:1};
-  flashState.items=[...flashState.original];
+const FLASH_PROGRESS_KEY='vocabstar_flash_progress';
+function flashRefs(words){return words.map(w=>[w.id,w.listId])}
+function saveFlashProgress(){
+  try{
+    if(!flashState.items?.length||flashState.index>=flashState.items.length){localStorage.removeItem(FLASH_PROGRESS_KEY);return}
+    localStorage.setItem(FLASH_PROGRESS_KEY,JSON.stringify({fileId:activeFileId,listId:activeListId,viewMode,scope:flashState.scope,round:flashState.round,index:flashState.index,
+      items:flashRefs(flashState.items),known:flashRefs(flashState.known),unknown:flashRefs(flashState.unknown),history:flashState.history}))
+  }catch(e){}
+}
+function savedFlashProgress(){
+  try{
+    const p=JSON.parse(localStorage.getItem(FLASH_PROGRESS_KEY));
+    if(!p||p.fileId!==activeFileId||p.listId!==activeListId||p.viewMode!==viewMode||!(p.index>0))return null;
+    const word=([id,listId])=>{const l=currentFile()?.lists.find(x=>x.id===listId),w=l?.words.find(x=>x.id===id);return w?{...w,listId,listName:l.name}:null};
+    const alive=ref=>word(ref)!==null;
+    // Words deleted since the pause are dropped; the position counts only cards that still exist.
+    const index=p.items.slice(0,p.index).filter(alive).length,items=p.items.map(word).filter(Boolean);
+    if(index>=items.length)return null;
+    return {scope:p.scope,round:p.round,index,items,original:items,known:p.known.map(word).filter(Boolean),unknown:p.unknown.map(word).filter(Boolean),
+      history:p.history.length===p.index?p.history.filter((_,i)=>alive(p.items[i])):[]}
+  }catch(e){return null}
+}
+function showFlashScope(scope){
   document.querySelectorAll('.flashScopeBtn').forEach(b=>b.classList.toggle('active',b.dataset.scope===scope));
-  flashScopeName.textContent=flashContextLabel();
+  flashScopeName.textContent=flashContextLabel()
+}
+function openFlash(){
+  const saved=savedFlashProgress();
+  flashResume.classList.add('hidden');
+  if(!saved){startFlashSession();return}
+  showFlashScope(saved.scope);
+  flashArea.classList.add('hidden');flashEmpty.classList.add('hidden');flashSummary.classList.add('hidden');
+  flashResumeText.textContent=`前回の続き（${saved.round}周目）：${saved.items.length}枚中 ${saved.index}枚が終わっています。${saved.index+1}枚目から再開できます。`;
+  flashResume.classList.remove('hidden');
+  resumeFlashBtn.onclick=()=>{flashState=saved;flashResume.classList.add('hidden');showFlash()};
+  freshFlashBtn.onclick=()=>{flashResume.classList.add('hidden');startFlashSession(saved.scope)}
+}
+function startFlashSession(scope=defaultFlashScope()){
+  flashResume.classList.add('hidden');
+  flashState={scope,original:shuffle(flashWordsForScope(scope)),items:[],index:0,known:[],unknown:[],round:1,history:[]};
+  flashState.items=[...flashState.original];
+  saveFlashProgress();
+  showFlashScope(scope);
   flashSummary.classList.add('hidden');
   showFlash()
 }
-flashBtn.onclick=()=>{flashDialog.showModal();startFlashSession()};
+flashBtn.onclick=()=>{flashDialog.showModal();openFlash()};
 document.querySelectorAll('.flashScopeBtn').forEach(b=>b.onclick=()=>startFlashSession(b.dataset.scope));
 function showFlash(){
   const ok=flashState.items?.length>0;
@@ -808,6 +855,7 @@ function showFlash(){
   void flashCard.querySelector('.flashInner').offsetWidth;
   flashCard.classList.remove('resetting');
   flashProgress.textContent=`${flashState.index+1} / ${flashState.items.length}`;
+  prevFlashBtn.disabled=!(flashState.index>0&&flashState.history?.length);
   flashKnownCount.textContent=`わかった ${flashState.known.length}`;
   flashUnknownCount.textContent=`わからない ${flashState.unknown.length}`;
   flashRoundCount.textContent=`${flashState.round}周目`;
@@ -821,8 +869,18 @@ function judgeFlash(known){
   if(!flashState.items?.length||flashState.index>=flashState.items.length)return;
   const w=flashState.items[flashState.index];
   (known?flashState.known:flashState.unknown).push(w);
+  (flashState.history||=[]).push(known);
   flashState.index++;
+  saveFlashProgress();
   if(flashState.index>=flashState.items.length)finishFlashRound();else showFlash()
+}
+function prevFlash(){
+  if(!(flashState.index>0)||!flashState.history?.length)return;
+  const known=flashState.history.pop();
+  (known?flashState.known:flashState.unknown).pop();
+  flashState.index--;
+  saveFlashProgress();
+  showFlash()
 }
 function finishFlashRound(){
   state.learningHistory.push({type:'flash',at:new Date().toISOString(),known:flashState.known.length,unknown:flashState.unknown.length,round:flashState.round});
@@ -837,7 +895,7 @@ function finishFlashRound(){
 function retryUnknown(){
   if(!flashState.unknown.length)return;
   flashState.items=shuffle(flashState.unknown);
-  flashState.index=0;flashState.known=[];flashState.unknown=[];flashState.round++;
+  flashState.index=0;flashState.known=[];flashState.unknown=[];flashState.history=[];flashState.round++;
   flashSummary.classList.add('hidden');flashArea.classList.remove('hidden');showFlash()
 }
 flashCard.onclick=()=>{
@@ -853,12 +911,14 @@ document.getElementById('flashReverse').onchange=()=>{
 flashAudioBtn.onclick=e=>{e.stopPropagation();const w=flashState.items?.[flashState.index];if(w)speak(w.en)};
 knownFlashBtn.onclick=()=>judgeFlash(true);
 unknownFlashBtn.onclick=()=>judgeFlash(false);
+prevFlashBtn.onclick=prevFlash;
 retryUnknownBtn.onclick=retryUnknown;
 restartFlashBtn.onclick=()=>startFlashSession(flashState.scope||defaultFlashScope());
 shuffleFlashBtn.onclick=()=>{
   if(!flashState.items?.length)return;
   const remaining=flashState.items.slice(flashState.index);
   flashState.items=[...flashState.items.slice(0,flashState.index),...shuffle(remaining)];
+  saveFlashProgress();
   showFlash()
 };
 flashStar1.onclick=()=>{const w=flashState.items?.[flashState.index];if(w)setStar(w.id,w.listId,1)};
