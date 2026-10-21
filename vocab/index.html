@@ -575,14 +575,35 @@ function parseImport(text){
     return {en:(p[0]||'').trim(),jp:(p[1]||'').trim(),example:p.slice(2).join(',').trim()}
   }).filter(x=>x.en&&x.jp)
 }
+/* speech */
+// macOS/iOS の英語音声には効果音的なノベルティ音声や Eloquence 音声が含まれ、名前順で先頭に来ることがある。
+const NOVELTY_VOICES=/^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Fred|Junior|Ralph|Kathy|Princess|Deranged|Hysterical)\b/i;
+const GOOD_VOICES=/Samantha|Ava|Allison|Susan|Zoe|Nicky|Alex|Tom|Evan|Nathan|Joelle|Noelle|Google US English|Aria|Jenny|Guy|Michelle|Christopher|Emma|Brian/i;
+function voiceLang(v){return String(v.lang||'').replace('_','-').toLowerCase()}
+function pickEnglishVoice(voices){
+  const usable=voices.filter(v=>voiceLang(v).startsWith('en')&&!NOVELTY_VOICES.test(v.name));
+  const score=v=>(voiceLang(v)==='en-us'?40:voiceLang(v)==='en-gb'?20:0)+(GOOD_VOICES.test(v.name)?10:0)+(/enhanced|premium|natural|neural/i.test(v.name)?5:0)+(v.localService?2:0);
+  return usable.sort((a,b)=>score(b)-score(a))[0]||null
+}
+// 単語帳の表記用の記号や補足は読み上げると発音が崩れるので、英語部分だけにする。
+function speechText(text){
+  let t=String(text||'');
+  t=t.replace(/[（(\[［【][^）)\]］】]*[）)\]］】]/g,' ');      // 括弧内の補足（品詞・注記）
+  t=t.split(/\s*[\/／|｜;；]\s*/)[0];                     // 「color/colour」などの別表記は最初だけ
+  t=t.replace(/[\u3000-\u30ff\u3400-\u9fff\uff00-\uff9f]/g,' '); // 日本語・全角記号
+  t=t.replace(/[~〜～]\s*ing\b/gi,'doing').replace(/[~〜～…]+/g,' ').replace(/\b(?:sth|smth)\b\.?/gi,'something').replace(/\b(?:sb|sbd)\b\.?/gi,'someone').replace(/\bone's\b/gi,"one's");
+  t=t.replace(/\s+/g,' ').trim();
+  return t||String(text||'').trim()
+}
+let speechVoice=null;
+function refreshSpeechVoice(){if('speechSynthesis' in window)speechVoice=pickEnglishVoice(speechSynthesis.getVoices())}
 function speak(text){
   if(!('speechSynthesis' in window)){alert('この端末では音声読み上げを利用できません。');return}
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
+  const u=new SpeechSynthesisUtterance(speechText(text));
   u.lang='en-US';u.rate=.88;u.pitch=1;
-  const voices=speechSynthesis.getVoices();
-  const preferred=voices.find(v=>/^en-(US|GB)/i.test(v.lang))||voices.find(v=>/^en/i.test(v.lang));
-  if(preferred)u.voice=preferred;
+  if(!speechVoice)refreshSpeechVoice();
+  if(speechVoice){u.voice=speechVoice;u.lang=speechVoice.lang}
   speechSynthesis.speak(u)
 }
 function openName(title,value,action){nameDialogTitle.textContent=title;nameInput.value=value||'';nameAction=action;nameDialog.showModal();setTimeout(()=>nameInput.focus(),50)}
@@ -1027,7 +1048,7 @@ doRestoreBtn.onclick=()=>{try{const x=JSON.parse(restoreText.value);if(!x||!Arra
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close).close());
 autoSpeak.checked=Boolean(state.settings.autoSpeak);
 autoSpeak.onchange=()=>{state.settings.autoSpeak=autoSpeak.checked;save()};
-if('speechSynthesis' in window){speechSynthesis.getVoices()}
+if('speechSynthesis' in window){refreshSpeechVoice();speechSynthesis.addEventListener?.('voiceschanged',refreshSpeechVoice)}
 if('serviceWorker' in navigator&&location.protocol!=='file:'){navigator.serviceWorker.register('./sw.js').catch(()=>{})}
 render();
 </script>
