@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync('vocab/index.html','utf8');
+const code=html.slice(html.indexOf('flashCard.onclick='),html.indexOf('flashAudioBtn.onclick='));
+const reverse={checked:true},flipped=new Set();let spoken=[],resets=0,cancels=0;
+const ctx={flashCard:{classList:{toggle(c){if(flipped.has(c)){flipped.delete(c);return false}flipped.add(c);return true}}},flashState:{items:[{en:'apple'}],index:0},document:{getElementById:()=>reverse},autoSpeak:{checked:true},speak:w=>spoken.push(w),showFlash:()=>resets++,flashSummary:{classList:{contains:()=>true}},window:{speechSynthesis:{cancel(){cancels++}}}};
+ctx.speechSynthesis=ctx.window.speechSynthesis;
+vm.createContext(ctx);vm.runInContext(code,ctx);
+ctx.flashCard.onclick();assert.deepEqual(spoken,['apple']);
+ctx.flashCard.onclick();assert.equal(spoken.length,1);
+reverse.onchange();assert.equal(resets,1);assert.equal(cancels,1);
+reverse.checked=false;ctx.flashCard.onclick();assert.equal(spoken.length,1);
+const imageSource=fs.readFileSync('vocab/image-import.js','utf8');
+assert(imageSource.includes("reverse?'.flashBack':'.flashFace'"));
+new vm.Script(imageSource);
+console.log('PASS: reverse audio only on reveal, normal flip does not double speak, direction switch resets card/cancels audio, image script syntax');

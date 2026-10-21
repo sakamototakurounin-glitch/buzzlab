@@ -179,6 +179,9 @@
     originalShowFlash();
     if(!flashImage)return;
     const w=flashState?.items?.[flashState.index];
+    const reverse=Boolean(document.getElementById('flashReverse')?.checked);
+    const face=flashCard.querySelector(reverse?'.flashBack':'.flashFace');
+    if(face&&flashImage.parentNode!==face)face.insertBefore(flashImage,reverse?flashJp:flashWord);
     if(w?.image){
       flashImage.src=w.image;
       flashImage.style.display='block';

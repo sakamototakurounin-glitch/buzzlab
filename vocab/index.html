@@ -82,6 +82,7 @@
     .flashCard{height:320px;perspective:1000px;cursor:pointer;user-select:none;margin-top:10px}
     .flashInner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .35s}
     .flashCard.flipped .flashInner{transform:rotateY(180deg)}
+    .flashCard.reverse #flashAudioBtn{visibility:hidden}
     .flashCard.resetting .flashInner{transition:none;transform:rotateY(0deg)}
     .flashCard.resetting .flashBack{visibility:hidden}
     .flashFace{-webkit-backface-visibility:hidden}
@@ -327,6 +328,7 @@
     <div class="muted" id="flashScopeName"></div>
     <label class="switchRow"><input type="checkbox" id="autoSpeak">自動発音</label>
   </div>
+  <label class="switchRow" style="min-height:44px"><input type="checkbox" id="flashReverse">表裏を逆にする（意味 → 英単語）</label>
   <div class="flashScopeTabs" id="flashScopeTabs">
     <button class="flashScopeBtn active" data-scope="all">全て</button>
     <button class="flashScopeBtn" data-scope="starred">★付き</button>
@@ -345,12 +347,12 @@
         <div class="flashFace">
           <button class="audioBtn flashAudio" id="flashAudioBtn" type="button">🔊</button>
           <div class="flashWord" id="flashWord"></div>
-          <div class="flashHint">タップして意味を見る</div>
+          <div class="flashHint" id="flashFrontHint">タップして意味を見る</div>
         </div>
         <div class="flashFace flashBack">
           <div class="flashJp" id="flashJp"></div>
           <div class="flashEx" id="flashEx"></div>
-          <div class="flashHint">タップして英単語に戻る</div>
+          <div class="flashHint" id="flashBackHint">タップして英単語に戻る</div>
         </div>
       </div>
     </div>
@@ -798,7 +800,11 @@ function showFlash(){
   // Reset without animating the new answer from back to front.
   flashCard.classList.add('resetting');
   flashCard.classList.remove('flipped');
-  flashWord.textContent=w.en;flashJp.textContent=w.jp;flashEx.textContent=w.example||'';
+  const reverse=document.getElementById('flashReverse').checked;
+  flashCard.classList.toggle('reverse',reverse);
+  flashWord.textContent=reverse?w.jp:w.en;flashJp.textContent=reverse?w.en:w.jp;flashEx.textContent=w.example||'';
+  document.getElementById('flashFrontHint').textContent=reverse?'タップして英単語を見る':'タップして意味を見る';
+  document.getElementById('flashBackHint').textContent=reverse?'タップして意味に戻る':'タップして英単語に戻る';
   void flashCard.querySelector('.flashInner').offsetWidth;
   flashCard.classList.remove('resetting');
   flashProgress.textContent=`${flashState.index+1} / ${flashState.items.length}`;
@@ -807,7 +813,9 @@ function showFlash(){
   flashRoundCount.textContent=`${flashState.round}周目`;
   flashStar1.className=w.star>=1?'star-on':'star-off';
   flashStar2.className=w.star>=2?'star-on':'star-off';
-  if(autoSpeak.checked)setTimeout(()=>speak(w.en),100)
+  if(autoSpeak.checked&&!reverse)setTimeout(()=>{
+    if(!document.getElementById('flashReverse').checked&&flashState.items?.[flashState.index]===w&&flashDialog.open)speak(w.en)
+  },100)
 }
 function judgeFlash(known){
   if(!flashState.items?.length||flashState.index>=flashState.items.length)return;
@@ -832,7 +840,16 @@ function retryUnknown(){
   flashState.index=0;flashState.known=[];flashState.unknown=[];flashState.round++;
   flashSummary.classList.add('hidden');flashArea.classList.remove('hidden');showFlash()
 }
-flashCard.onclick=()=>flashCard.classList.toggle('flipped');
+flashCard.onclick=()=>{
+  const revealed=flashCard.classList.toggle('flipped');
+  const w=flashState.items?.[flashState.index];
+  if(revealed&&document.getElementById('flashReverse').checked&&autoSpeak.checked&&w)speak(w.en)
+};
+document.getElementById('flashReverse').onchange=()=>{
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  if(!flashSummary.classList.contains('hidden'))return;
+  showFlash();
+};
 flashAudioBtn.onclick=e=>{e.stopPropagation();const w=flashState.items?.[flashState.index];if(w)speak(w.en)};
 knownFlashBtn.onclick=()=>judgeFlash(true);
 unknownFlashBtn.onclick=()=>judgeFlash(false);
