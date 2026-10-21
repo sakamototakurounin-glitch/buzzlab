@@ -10,4 +10,5 @@ assert.equal(ctx.pickEnglishVoice([v('English United Kingdom','en_GB'),v('Englis
 assert.equal(ctx.pickEnglishVoice([v('Kyoko','ja-JP')]),null);
 const cases=[['apple','apple'],['run (v.)','run'],['color/colour','color'],['look forward to ~ing','look forward to doing'],['take care of sth','take care of something'],['remind sb of','remind someone of'],['abandon【動】','abandon'],['DNA','DNA'],['be fond of','be fond of'],['りんご',' りんご'.trim()]];
 for(const [input,expected] of cases)assert.equal(ctx.speechText(input),expected,input);
-console.log('PASS: English voice skips novelty voices and prefers en-US; speech text drops notes, alternates, Japanese and placeholders');
+assert.equal(ctx.applyPronunciationFixes('Misgiving'),'mis giving');assert.equal(ctx.applyPronunciationFixes('have misgivings about it'),'have mis givings about it');assert.equal(ctx.applyPronunciationFixes('giving'),'giving');
+console.log('PASS: pronunciation fixes; English voice skips novelty voices and prefers en-US; speech text drops notes, alternates, Japanese and placeholders');
