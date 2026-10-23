@@ -1,4 +1,4 @@
-const CACHE='vocabstar-cache-v28-compact-flash';
+const CACHE='vocabstar-cache-v29-flash-font';
 const ASSETS=['./','./index.html','./trio.html','./quiz-core.js','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
 
 async function injectImageImport(resp){
