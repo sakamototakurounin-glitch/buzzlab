@@ -850,48 +850,93 @@ function defaultFlashScope(){
 function flashContextLabel(){
   return `${currentFile().name} / ${(viewMode==='star1'||viewMode==='star2')?'ファイル全体':currentList().name}`
 }
-const FLASH_PROGRESS_KEY='vocabstar_flash_progress';
+const FLASH_PROGRESS_KEY='vocabstar_flash_progress_v2',FLASH_PROGRESS_LEGACY_KEY='vocabstar_flash_progress',FLASH_PROGRESS_MAX=30;
 function flashRefs(words){return words.map(w=>[w.id,w.listId])}
-function saveFlashProgress(){
+function flashKey(fileId,listId,mode,scope){return [fileId,listId,mode,scope].join('|')}
+// 保存形式：{last:最後に中断した key, items:{key:進み具合}}。リスト・表示モード・絞り込みごとに別々に保存する。
+function readFlashStore(){
   try{
-    if(!flashState.items?.length||flashState.index>=flashState.items.length){localStorage.removeItem(FLASH_PROGRESS_KEY);return}
-    localStorage.setItem(FLASH_PROGRESS_KEY,JSON.stringify({fileId:activeFileId,listId:activeListId,viewMode,scope:flashState.scope,round:flashState.round,index:flashState.index,
-      items:flashRefs(flashState.items),known:flashRefs(flashState.known),unknown:flashRefs(flashState.unknown),history:flashState.history}))
+    const x=JSON.parse(localStorage.getItem(FLASH_PROGRESS_KEY));
+    if(x&&typeof x==='object'&&x.items)return x
+  }catch(e){}
+  try{ // 旧形式（1件だけ保存）から引き継ぐ
+    const old=JSON.parse(localStorage.getItem(FLASH_PROGRESS_LEGACY_KEY));
+    if(old&&old.fileId&&old.listId){const k=flashKey(old.fileId,old.listId,old.viewMode,old.scope);return {last:k,items:{[k]:{...old,savedAt:0}}}}
+  }catch(e){}
+  return {last:null,items:{}}
+}
+function writeFlashStore(store){
+  try{
+    const keys=Object.keys(store.items).sort((a,b)=>(store.items[b].savedAt||0)-(store.items[a].savedAt||0));
+    keys.slice(FLASH_PROGRESS_MAX).forEach(k=>delete store.items[k]);
+    if(store.last&&!store.items[store.last])store.last=null;
+    localStorage.setItem(FLASH_PROGRESS_KEY,JSON.stringify(store));
+    localStorage.removeItem(FLASH_PROGRESS_LEGACY_KEY)
   }catch(e){}
 }
-function savedFlashProgress(){
+function clearFlashProgress(key){const store=readFlashStore();delete store.items[key];if(store.last===key)store.last=null;writeFlashStore(store)}
+function currentFlashKey(scope){return flashKey(activeFileId,activeListId,viewMode,scope)}
+function saveFlashProgress(){
+  const key=currentFlashKey(flashState.scope);
+  if(!flashState.items?.length||flashState.index>=flashState.items.length){clearFlashProgress(key);return}
+  if(!(flashState.index>0))return; // まだ1枚も進んでいなければ、保存済みの進み具合を消さない
+  const store=readFlashStore();
+  store.items[key]={fileId:activeFileId,listId:activeListId,viewMode,scope:flashState.scope,round:flashState.round,index:flashState.index,savedAt:Date.now(),
+    items:flashRefs(flashState.items),known:flashRefs(flashState.known),unknown:flashRefs(flashState.unknown),history:flashState.history};
+  store.last=key;writeFlashStore(store)
+}
+// 保存された進み具合を、いまの単語データに合わせて組み立てる。削除済みの単語は飛ばす。
+function restoreFlashProgress(p){
   try{
-    const p=JSON.parse(localStorage.getItem(FLASH_PROGRESS_KEY));
-    if(!p||p.fileId!==activeFileId||p.listId!==activeListId||p.viewMode!==viewMode||!(p.index>0))return null;
-    const word=([id,listId])=>{const l=currentFile()?.lists.find(x=>x.id===listId),w=l?.words.find(x=>x.id===id);return w?{...w,listId,listName:l.name}:null};
+    const file=state.files.find(f=>f.id===p.fileId),list=file?.lists.find(l=>l.id===p.listId);
+    if(!file||!list||!(p.index>0))return null;
+    const word=([id,listId])=>{const l=file.lists.find(x=>x.id===listId),w=l?.words.find(x=>x.id===id);return w?{...w,listId,listName:l.name}:null};
     const alive=ref=>word(ref)!==null;
-    // Words deleted since the pause are dropped; the position counts only cards that still exist.
     const index=p.items.slice(0,p.index).filter(alive).length,items=p.items.map(word).filter(Boolean);
     if(index>=items.length)return null;
     return {scope:p.scope,round:p.round,index,items,original:items,known:p.known.map(word).filter(Boolean),unknown:p.unknown.map(word).filter(Boolean),
-      history:p.history.length===p.index?p.history.filter((_,i)=>alive(p.items[i])):[]}
+      history:p.history.length===p.index?p.history.filter((_,i)=>alive(p.items[i])):[],
+      fileId:p.fileId,listId:p.listId,viewMode:p.viewMode,label:`${file.name} / ${(p.viewMode==='star1'||p.viewMode==='star2')?'ファイル全体':list.name}`}
   }catch(e){return null}
+}
+// いま開いているリストの続きを優先し、なければ最後に中断した続き（別のリストでも）を返す。
+function findFlashResume(){
+  const store=readFlashStore();
+  const own=store.items[currentFlashKey(defaultFlashScope())];
+  const keys=[own&&currentFlashKey(defaultFlashScope()),store.last].filter(Boolean);
+  for(const k of keys){const r=restoreFlashProgress(store.items[k]);if(r)return {key:k,saved:r}}
+  return null
 }
 function showFlashScope(scope){
   document.querySelectorAll('.flashScopeBtn').forEach(b=>b.classList.toggle('active',b.dataset.scope===scope));
   flashScopeName.textContent=flashContextLabel()
 }
 function openFlash(){
-  const saved=savedFlashProgress();
+  const found=findFlashResume();
   flashResume.classList.add('hidden');
-  if(!saved){startFlashSession();return}
-  showFlashScope(saved.scope);
+  if(!found){startFlashSession();return}
+  const {key,saved}=found;
   flashArea.classList.add('hidden');flashEmpty.classList.add('hidden');flashSummary.classList.add('hidden');
-  flashResumeText.textContent=`前回の続き（${saved.round}周目）：${saved.items.length}枚中 ${saved.index}枚が終わっています。${saved.index+1}枚目から再開できます。`;
+  flashScopeName.textContent=saved.label;
+  flashResumeText.textContent=`前回の続き（${saved.label}・${saved.round}周目）：${saved.items.length}枚中 ${saved.index}枚が終わっています。${saved.index+1}枚目から再開できます。`;
   flashResume.classList.remove('hidden');
-  resumeFlashBtn.onclick=()=>{flashState=saved;flashResume.classList.add('hidden');showFlash()};
-  freshFlashBtn.onclick=()=>{flashResume.classList.add('hidden');startFlashSession(saved.scope)}
+  resumeFlashBtn.onclick=()=>{
+    // 別のリストの続きなら、そのリストに切り替えてから再開する
+    if(saved.fileId!==activeFileId||saved.listId!==activeListId||saved.viewMode!==viewMode){
+      activeFileId=saved.fileId;activeListId=saved.listId;viewMode=saved.viewMode;searchInput.value='';render()
+    }
+    flashState=saved;flashResume.classList.add('hidden');showFlashScope(saved.scope);showFlash()
+  };
+  // 別のリストの続きを提案しているときは、断っても、そのリストの続きは消さない（いまのリストだけを最初から始める）。
+  const sameContext=saved.fileId===activeFileId&&saved.listId===activeListId&&saved.viewMode===viewMode;
+  freshFlashBtn.textContent=sameContext?'最初から':'いまのリストを最初から';
+  freshFlashBtn.onclick=()=>{if(sameContext)clearFlashProgress(key);flashResume.classList.add('hidden');startFlashSession(sameContext?saved.scope:defaultFlashScope())}
 }
 function startFlashSession(scope=defaultFlashScope()){
   flashResume.classList.add('hidden');
   flashState={scope,original:shuffle(flashWordsForScope(scope)),items:[],index:0,known:[],unknown:[],round:1,history:[]};
   flashState.items=[...flashState.original];
-  saveFlashProgress();
+  clearFlashProgress(currentFlashKey(scope));
   showFlashScope(scope);
   flashSummary.classList.add('hidden');
   showFlash()
