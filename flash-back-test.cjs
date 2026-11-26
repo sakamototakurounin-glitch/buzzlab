@@ -12,5 +12,5 @@ assert.equal(ctx.flashState.index,1);assert.equal(ctx.flashState.unknown.length,
 ctx.prevFlash();ctx.prevFlash();
 assert.equal(ctx.flashState.index,0);assert.equal(ctx.flashState.known.length,0);
 assert.ok(saves>=4);
-assert(html.includes("localStorage.setItem(FLASH_PROGRESS_KEY")&&html.includes('id="resumeFlashBtn"'));
+assert(html.includes("userStorage.setItem(FLASH_PROGRESS_KEY")&&html.includes('id="resumeFlashBtn"'));
 console.log('PASS: back undoes the last judgement, stops at the first card, and progress is saved for resuming');

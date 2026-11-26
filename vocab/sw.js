@@ -1,5 +1,5 @@
-const CACHE='vocabstar-cache-v30-flash-resume';
-const ASSETS=['./','./index.html','./trio.html','./quiz-core.js','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
+const CACHE='vocabstar-cache-v31-large-storage';
+const ASSETS=['./','./index.html','./trio.html','./quiz-core.js','./storage.js','./bootstrap.js','./manifest.webmanifest','./image-import.js','./account-config.js','./account.js'];
 
 async function injectImageImport(resp){
   const type=resp.headers.get('content-type')||'';

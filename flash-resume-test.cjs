@@ -5,6 +5,7 @@ const store={};const localStorage={getItem:k=>k in store?store[k]:null,setItem:(
 const words=(p)=>[0,1,2,3].map(i=>({id:p+i,en:p+i,jp:'x',star:0}));
 const state={files:[{id:'f',name:'F',lists:[{id:'l1',name:'L1',words:words('a')},{id:'l2',name:'L2',words:words('b')}]}]};
 const ctx={localStorage,state,activeFileId:'f',activeListId:'l1',viewMode:'list',flashState:null,Date,defaultFlashScope:()=>'all'};
+ctx.userStorage=localStorage;
 vm.createContext(ctx);vm.runInContext(code,ctx);
 const run=(src)=>vm.runInContext(src,ctx);
 const start=(list,index)=>{const l=state.files[0].lists.find(x=>x.id===list);run(`activeListId='${list}'`);

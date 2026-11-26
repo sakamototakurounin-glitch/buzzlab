@@ -126,7 +126,7 @@
         }
       }
 
-      save();
+      if(await save()===false)return;
       importDialogNode.close();
 
       let msg=`${added}件を追加しました。`;

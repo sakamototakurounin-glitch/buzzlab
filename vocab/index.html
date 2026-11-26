@@ -221,6 +221,7 @@
 </style>
 </head>
 <body>
+<div id="storageLoading" role="status" style="position:fixed;inset:0;background:#f6f7fb;z-index:9999;padding:40px 20px">保存データを読み込んでいます…<p id="storageNotice" hidden></p></div>
 <div class="app">
   <div class="top">
     <div><div class="brand">VocabStar</div><div class="muted">英単語特化・オフライン単語帳</div></div>
@@ -455,9 +456,10 @@
 </div></dialog>
 
 <script src="./quiz-core.js"></script>
-<script>
+<script type="text/plain" id="vocabAppSource">
 const KEY='vocabstar_v3';
 const LEGACY_KEY='vocabstar_v1';
+const userStorage=window.VocabStarStorage?.small||localStorage;
 
 let state=loadState();
 let activeFileId=state.files[0].id;
@@ -471,6 +473,7 @@ function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36
 function makeList(name,words=[]){return {id:uid(),name,words:words.map(w=>({...w,id:w.id||uid(),star:Number(w.star)||0}))}}
 function makeFile(name,lists=[]){return {id:uid(),name,lists:lists.length?lists:[makeList('My Words')]}}
 function loadState(){
+  if(window.VocabStarStorage?.initialState)return JSON.parse(window.VocabStarStorage.initialState);
   try{
     const x=JSON.parse(localStorage.getItem(KEY));
     if(x&&Array.isArray(x.files)&&x.files.length)return x
@@ -479,7 +482,6 @@ function loadState(){
     const old=JSON.parse(localStorage.getItem(LEGACY_KEY));
     if(old&&Array.isArray(old.decks)&&old.decks.length){
       const migrated={files:[makeFile('My File',old.decks.map(d=>makeList(d.name||'単語帳',d.words||[])))]};
-      localStorage.setItem(KEY,JSON.stringify(migrated));
       return migrated
     }
   }catch(e){}
@@ -491,7 +493,16 @@ function ensureUserDataShape(x){
   return x
 }
 state=ensureUserDataShape(state);
-function save(){localStorage.setItem(KEY,JSON.stringify(state));render()}
+function save(){
+  const text=JSON.stringify(state);
+  const task=window.VocabStarStorage?window.VocabStarStorage.write(text,{dirty:Boolean(localStorage.getItem('vocabstar_account_session_v1'))}):Promise.resolve().then(()=>localStorage.setItem(KEY,text));
+  render();
+  return task.then(()=>true).catch(error=>{
+    console.error(error);
+    alert('端末への保存に失敗しました。直前の保存データは残っています。この画面を閉じずにバックアップを取得してください。端末の空き容量・保存設定を確認してください。');
+    return false;
+  });
+}
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function currentFile(){return state.files.find(f=>f.id===activeFileId)}
 function currentList(){return currentFile()?.lists.find(l=>l.id===activeListId)}
@@ -586,12 +597,12 @@ function render(){
   });
   emptyState.classList.toggle('hidden',words.length>0)
 }
-function setStar(id,listId,n){
+async function setStar(id,listId,n){
   const w=findStoredWord(id,listId);
   if(!w){alert('単語の表示が古くなっています。単語帳を選び直してください。');return}
   const previous=w.star;
   w.star=(Number(w.star)===n?0:n);
-  try{save()}catch(error){
+  try{if(await save()===false)throw new Error('端末への保存に失敗しました。')}catch(error){
     // A failed localStorage write must not leave an unsaved star in memory.
     w.star=previous;
     render();
@@ -742,7 +753,7 @@ function collectGlobalStars(files){
   })));
   return groups;
 }
-document.getElementById('allStarFilesBtn').onclick=()=>{
+document.getElementById('allStarFilesBtn').onclick=async()=>{
   const groups=collectGlobalStars(state.files);
   if(!groups[1].length&&!groups[2].length){alert('集約できる星付き単語がありません。');return}
   if(!confirm(`全ファイルから★1：${groups[1].length}語、★★2：${groups[2].length}語をコピーし、2つの新しいファイルに50語ずつまとめます。\n元の単語帳は変更しません。同じ単語の別登録もそのまま含めます。\n作成済みの集約ファイルは対象外です。`))return;
@@ -763,12 +774,8 @@ document.getElementById('allStarFilesBtn').onclick=()=>{
   state.files.push(...created);
   const first=created[groups[1].length?0:1];
   activeFileId=first.id;activeListId=first.lists[0].id;viewMode='list';searchInput.value='';
-  const reserveKey='vocabstar_collection_reserve_'+uid();
-  let reserved=false;
   try{
-    // Keep working room for later star/settings changes, not just the snapshot.
-    localStorage.setItem(reserveKey,' '.repeat(65536));reserved=true;
-    save();
+    if(await save()===false)throw new Error('保存容量が不足しています。');
   }catch(error){
     state.files.splice(state.files.length-created.length,created.length);
     activeFileId=previousFileId;activeListId=previousListId;viewMode=previousView;searchInput.value=previousSearch;
@@ -776,7 +783,7 @@ document.getElementById('allStarFilesBtn').onclick=()=>{
     console.error('VocabStar collection save failed:',error);
     alert('集約ファイルを保存できませんでした。端末の保存容量が不足している可能性があります。元の単語帳は変更していません。サイトデータは消さないでください。');
     return;
-  }finally{if(reserved)localStorage.removeItem(reserveKey)}
+  }
   alert('★1・★★2の集約ファイルを作成しました。作成時点のコピーです。星を変更した後は再作成してください。');
 };
 
@@ -822,10 +829,10 @@ function exportStarMerged(){
 /* import */
 importBtn.onclick=()=>{if(!viewMode.startsWith('list'))return;importText.value='';importDialog.showModal()};
 starExportBtn.onclick=exportStarMerged;
-doImportBtn.onclick=()=>{
+doImportBtn.onclick=async()=>{
   const l=currentList(),rows=parseImport(importText.value),seen=new Set(l.words.map(w=>w.en.toLowerCase()));let added=0;
   rows.forEach(r=>{if(!seen.has(r.en.toLowerCase())){l.words.push({id:uid(),...r,star:0});seen.add(r.en.toLowerCase());added++}});
-  importDialog.close();save();alert(`${added}語を追加しました。`)
+  if(await save()!==false){importDialog.close();alert(`${added}語を追加しました。`)}
 };
 searchInput.oninput=render;
 
@@ -856,7 +863,7 @@ function flashKey(fileId,listId,mode,scope){return [fileId,listId,mode,scope].jo
 // 保存形式：{last:最後に中断した key, items:{key:進み具合}}。リスト・表示モード・絞り込みごとに別々に保存する。
 function readFlashStore(){
   try{
-    const x=JSON.parse(localStorage.getItem(FLASH_PROGRESS_KEY));
+    const x=JSON.parse(userStorage.getItem(FLASH_PROGRESS_KEY));
     if(x&&typeof x==='object'&&x.items)return x
   }catch(e){}
   try{ // 旧形式（1件だけ保存）から引き継ぐ
@@ -870,7 +877,7 @@ function writeFlashStore(store){
     const keys=Object.keys(store.items).sort((a,b)=>(store.items[b].savedAt||0)-(store.items[a].savedAt||0));
     keys.slice(FLASH_PROGRESS_MAX).forEach(k=>delete store.items[k]);
     if(store.last&&!store.items[store.last])store.last=null;
-    localStorage.setItem(FLASH_PROGRESS_KEY,JSON.stringify(store));
+    userStorage.setItem(FLASH_PROGRESS_KEY,JSON.stringify(store));
     localStorage.removeItem(FLASH_PROGRESS_LEGACY_KEY)
   }catch(e){}
 }
@@ -1137,9 +1144,8 @@ if('speechSynthesis' in window){refreshSpeechVoice();speechSynthesis.addEventLis
 if('serviceWorker' in navigator&&location.protocol!=='file:'){navigator.serviceWorker.register('./sw.js').catch(()=>{})}
 render();
 </script>
-<script src="./account-config.js"></script>
-<script src="./account.js"></script>
-<script>
+<!-- account.js and image-import.js are loaded after large-storage initialization. -->
+<script type="text/plain" id="vocabModeSource">
 (()=>{
   const vocabMode=document.getElementById('vocabMode'),trioFrame=document.getElementById('trioFrame');
   const vocabButton=document.getElementById('vocabModeBtn'),trioButton=document.getElementById('trioModeBtn');
@@ -1156,5 +1162,7 @@ render();
   window.VocabStarModes={set:setAppMode};
 })();
 </script>
+<script src="./storage.js"></script>
+<script src="./bootstrap.js"></script>
 </body>
 </html>

@@ -5,12 +5,15 @@
   const USER_KEY='vocabstar_account_user_v1';
   const DIRTY_KEY='vocabstar_account_dirty_v1';
   const DATA_KEY='vocabstar_v3';
+  const userStorage=window.VocabStarStorage?.small||localStorage;
+  const auxiliaryAllowed=key=>key?.startsWith('vocabstar_')&&!['vocabstar_v1',DATA_KEY,SESSION_KEY,USER_KEY,DIRTY_KEY].includes(key)&&!/(backup|reserve)/i.test(key);
   let token=localStorage.getItem(SESSION_KEY)||'';
   let username=localStorage.getItem(USER_KEY)||'';
   let authMode='login';
   let syncTimer=null;
   let applyingCloud=false;
   let pendingCloudData=null;
+  let revision=0;
   function withTimeout(promise,message,ms=20000){
     let timer;
     return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),ms)})]).finally(()=>clearTimeout(timer))
@@ -62,8 +65,9 @@
     const auxiliary={};
     for(let i=0;i<localStorage.length;i++){
       const key=localStorage.key(i);
-      if(key?.startsWith('vocabstar_')&&![DATA_KEY,SESSION_KEY,USER_KEY,DIRTY_KEY].includes(key))auxiliary[key]=localStorage.getItem(key);
+      if(auxiliaryAllowed(key))auxiliary[key]=userStorage.getItem(key);
     }
+    for(const [key,value] of window.VocabStarStorage?.small.entries()||[])if(auxiliaryAllowed(key))auxiliary[key]=value;
     const trio=await trioApi();
     return {version:2,state,auxiliary,trio:trio?await withTimeout(trio.exportData(),'Trioの保存データを読み込めませんでした。端末のデータは残っています。ページを開き直して同期してください。'):null}
   }
@@ -71,11 +75,14 @@
     if(!bundle?.state?.files?.length)throw new Error('クラウドデータの形式が正しくありません。');
     applyingCloud=true;
     try{
-      try{localStorage.setItem(`vocabstar_pre_cloud_backup_${Date.now()}`,JSON.stringify(state))}catch(e){}
-      state=ensureUserDataShape(bundle.state);
-      localStorage.setItem(DATA_KEY,JSON.stringify(state));
+      if(window.VocabStarStorage)await window.VocabStarStorage.backup(JSON.stringify(state));
+      else try{localStorage.setItem(`vocabstar_pre_cloud_backup_${Date.now()}`,JSON.stringify(state))}catch(e){}
+      const next=ensureUserDataShape(bundle.state);
+      if(window.VocabStarStorage)await window.VocabStarStorage.write(JSON.stringify(next));
+      else localStorage.setItem(DATA_KEY,JSON.stringify(next));
+      state=next;
       Object.entries(bundle.auxiliary||{}).forEach(([key,value])=>{
-        if(key.startsWith('vocabstar_')&&typeof value==='string')localStorage.setItem(key,value)
+        if(auxiliaryAllowed(key)&&typeof value==='string')userStorage.setItem(key,value)
       });
       activeFileId=state.files[0].id;activeListId=state.files[0].lists[0].id;viewMode='list';
       autoSpeak.checked=Boolean(state.settings.autoSpeak);
@@ -86,24 +93,28 @@
   }
   async function upload(){
     if(!token||applyingCloud)return;
+    const uploadingRevision=revision;
     clearTimeout(syncTimer);setStatus('同期中…','syncing');
     try{
       const result=await api('/api/data',{method:'PUT',body:JSON.stringify({data:await makeBundle()})});
-      localStorage.removeItem(DIRTY_KEY);setStatus('同期済み','online');
+      if(uploadingRevision===revision){await userStorage.removeItem(DIRTY_KEY);setStatus('同期済み','online')}
+      else setStatus('変更あり','syncing');
       el('lastSyncText').textContent=`最終同期: ${new Date(result.updatedAt).toLocaleString()}`
       return true
     }catch(error){setStatus('同期できません','');console.error(error);throw error}
   }
   function scheduleUpload(){
     if(!token||applyingCloud)return;
-    localStorage.setItem(DIRTY_KEY,'1');clearTimeout(syncTimer);setStatus('変更あり','syncing');syncTimer=setTimeout(()=>upload().catch(()=>{}),700)
+    revision++;
+    userStorage.setItem(DIRTY_KEY,'1');clearTimeout(syncTimer);setStatus('変更あり','syncing');syncTimer=setTimeout(()=>upload().catch(()=>{}),700)
   }
   window.addEventListener('vocabstar-trio-changed',scheduleUpload);
   const originalSave=window.save;
-  window.save=function(){
-    originalSave();
+  window.save=async function(){
+    if(await originalSave()===false)return false;
     // Local persistence already succeeded; a sync-marker failure is separate.
     try{scheduleUpload()}catch(error){setStatus('端末保存済み・同期準備に失敗','');console.error(error)}
+    return true;
   };
 
   function openAuth(mode='login'){
@@ -137,7 +148,7 @@
   el('keepLocalBtn').onclick=async()=>{try{await api('/api/logout',{method:'POST'})}catch(e){}pendingCloudData=null;setSession('','');el('migrationDialog').close()};
   el('syncNowBtn').onclick=()=>upload().catch(error=>alert(error.message));
   el('logoutBtn').onclick=async()=>{
-    if(localStorage.getItem(DIRTY_KEY))try{await upload()}catch(error){alert('クラウドへ同期できませんでした。端末内のデータは残っています。')}
+    if(userStorage.getItem(DIRTY_KEY))try{await upload()}catch(error){alert('クラウドへ同期できませんでした。端末内のデータは残っています。')}
     try{await api('/api/logout',{method:'POST'})}catch(e){}
     setSession('','');el('accountDialog').close()
   };
@@ -145,7 +156,7 @@
   setSession(token,username);
   if(token&&API_BASE)api('/api/me').then(async me=>{
     setSession(token,me.username);
-    if(localStorage.getItem(DIRTY_KEY))await upload();
+    if(userStorage.getItem(DIRTY_KEY))await upload();
     else{
       const cloud=await api('/api/data');
       if(cloud.data)await applyBundle(cloud.data)

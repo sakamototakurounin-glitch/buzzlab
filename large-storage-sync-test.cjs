@@ -1,0 +1,24 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+(async()=>{
+  const legacy=new Map([['vocabstar_v3','old-local-copy'],['vocabstar_account_session_v1','token'],['vocabstar_account_user_v1','user'],['vocabstar_pre_cloud_backup_old','x'.repeat(10000)]]);
+  const small=new Map(),els=new Map(),requests=[];let persisted,backup;
+  const el=id=>{if(!els.has(id))els.set(id,{textContent:'',className:'',checked:false,close(){}});return els.get(id)};
+  const localStorage={getItem:k=>legacy.get(k)??null,setItem(k,v){assert(k!=='vocabstar_v3','main data must not return to localStorage');legacy.set(k,v)},removeItem:k=>legacy.delete(k),key:i=>[...legacy.keys()][i],get length(){return legacy.size}};
+  const storage={write:async text=>{persisted=text},backup:async text=>{backup=text},small:{getItem:k=>small.get(k)??null,setItem:(k,v)=>small.set(k,v),removeItem:k=>small.delete(k),entries:()=>[...small]}};
+  const cloud={state:{files:[{id:'cloud',lists:[{id:'list',words:[{id:'w',en:'cloud-word',jp:'意味',star:2}]}]}],settings:{autoSpeak:true}},auxiliary:{vocabstar_flash_progress_v2:'progress',vocabstar_pre_cloud_backup_old:'must-not-import',vocabstar_account_session_v1:'malicious'},trio:{version:1}};
+  let trioImported=false;
+  el('trioFrame').contentWindow={VocabStarTrioCloud:{exportData:async()=>({version:1}),importData:async()=>{trioImported=true}}};
+  const ctx={state:{files:[{id:'local',lists:[{words:[]}]}]},localStorage,document:{getElementById:el},setTimeout,clearTimeout,AbortController,console,ensureUserDataShape:x=>x,autoSpeak:el('autoSpeak'),render(){},alert:assert.fail};
+  ctx.window={VOCABSTAR_CONFIG:{apiBaseUrl:'https://test.invalid'},VocabStarStorage:storage,save:async()=>{await storage.write(JSON.stringify(ctx.state));return true},addEventListener(){}};
+  Object.assign(ctx,{activeFileId:'local',activeListId:'local-list',viewMode:'list'});
+  ctx.fetch=async(url,opts)=>{requests.push({url,opts});return {ok:true,json:async()=>url.endsWith('/api/me')?{username:'user'}:opts.method==='PUT'?{updatedAt:new Date().toISOString()}:{data:cloud}}};
+  vm.createContext(ctx);vm.runInContext(fs.readFileSync('vocab/account.js','utf8'),ctx);
+  await new Promise(r=>setTimeout(r,30));
+  assert.equal(ctx.state.files[0].id,'cloud');assert.equal(JSON.parse(persisted).files[0].id,'cloud');assert(backup);assert(trioImported);
+  assert.equal(legacy.get('vocabstar_v3'),'old-local-copy');assert.equal(legacy.get('vocabstar_account_session_v1'),'token');assert.equal(small.get('vocabstar_flash_progress_v2'),'progress');
+  await ctx.window.save();await el('syncNowBtn').onclick();
+  const bundle=JSON.parse(requests.find(r=>r.opts.method==='PUT').opts.body).data;
+  assert.equal(bundle.state.files[0].id,'cloud');assert(!Object.keys(bundle.auxiliary).some(k=>/backup|account_session/.test(k)));
+  assert.equal(bundle.auxiliary.vocabstar_flash_progress_v2,'progress');
+  console.log('PASS: cloud download writes new store, backup retained, legacy/session untouched, Trio import, upload excludes old backups and preserves progress');
+})().catch(e=>{console.error(e);process.exitCode=1});

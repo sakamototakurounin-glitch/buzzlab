@@ -7,19 +7,22 @@ const before=JSON.stringify(files);let seq=0,saves=0,accepted=false;const button
 const ctx={document:{getElementById:()=>button},state:{files},uid:()=>`new${seq++}`,makeList:(name,words=[])=>({id:`list${seq++}`,name,words}),makeFile:(name,lists)=>({id:`file${seq++}`,name,lists}),confirm:()=>accepted,alert(){},save:()=>saves++,searchInput:{value:'filter'}};
 Object.assign(ctx,{activeFileId:'original-file',activeListId:'original-list',viewMode:'list'});
 const scratch=new Map();ctx.localStorage={setItem:(k,v)=>scratch.set(k,v),removeItem:k=>scratch.delete(k)};
-vm.createContext(ctx);vm.runInContext(code,ctx);button.onclick();assert.equal(files.length,2);
-accepted=true;button.onclick();assert.equal(saves,1);assert.equal(files.length,4);
+vm.createContext(ctx);vm.runInContext(code,ctx);
+(async()=>{
+await button.onclick();assert.equal(files.length,2);
+accepted=true;await button.onclick();assert.equal(saves,1);assert.equal(files.length,4);
 assert.deepEqual(Array.from(files[2].lists,l=>l.words.length),[50,50,1]);
 assert.equal(files[3].lists[0].words.length,1);assert.equal(JSON.stringify(files.slice(0,2)),before);
 assert.equal(files[2].lists[0].name,'★1 全単語-(1)');
 assert.equal(files[2].lists[0].words[0].example,'例');
 assert.notEqual(files[2].lists[0].words[0].id,words[0].id);
-button.onclick();assert.equal(files[4].lists.flatMap(l=>l.words).length,101);assert.notEqual(files[4].name,files[2].name);
+await button.onclick();assert.equal(files[4].lists.flatMap(l=>l.words).length,101);assert.notEqual(files[4].name,files[2].name);
 assert.equal(new Set(files.slice(2).flatMap(f=>f.lists.flatMap(l=>l.words.map(w=>w.id)))).size,204);
 console.log('PASS: all files, exact star groups, 50/50/1 split, originals unchanged, fresh IDs, cancel, repeat excludes collections');
 const previous=JSON.stringify(files);ctx.render=()=>{};ctx.console={error(){}};
 ctx.save=()=>{throw Object.assign(new Error('full'),{name:'QuotaExceededError'})};
-const activeBefore=ctx.activeFileId;button.onclick();
+const activeBefore=ctx.activeFileId;await button.onclick();
 assert.equal(JSON.stringify(files),previous);assert.equal(ctx.activeFileId,activeBefore);
 assert.equal(scratch.size,0);
 console.log('PASS: storage quota failure rolls back collection and selection without changing original words');
+})().catch(e=>{console.error(e);process.exitCode=1});
